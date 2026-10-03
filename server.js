@@ -28,6 +28,7 @@ const crypto = require('crypto');
 // Load Docdon Backend Module
 const DocdonBackend = require('./docdon-backend.js');
 const api = DocdonBackend.api;
+const { handleMcpRequest } = require('./mcp-server.js');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = __dirname;
@@ -164,6 +165,18 @@ const server = http.createServer(async (req, res) => {
       'Access-Control-Allow-Headers': 'Content-Type, Authorization'
     });
     return res.end();
+  }
+
+  // ==========================================================================
+  // MCP ROUTING LAYER
+  // AgenticOrg connects to this endpoint and discovers DOCDON tools automatically.
+  // ==========================================================================
+  if (pathname === '/mcp') {
+    const body = (method === 'POST' || method === 'PUT' || method === 'PATCH') ? await parseRequestBody(req) : {};
+    if (body && body.__bodyTooLarge) {
+      return sendJson(res, 413, { success: false, error: 'MCP request body is too large.' });
+    }
+    return handleMcpRequest(req, res, body);
   }
 
   // ==========================================================================
