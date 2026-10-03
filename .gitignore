@@ -1,0 +1,8 @@
+node_modules/
+.venv/
+uploads/
+.env
+.env.*
+*.log
+database.json
+data/database.json

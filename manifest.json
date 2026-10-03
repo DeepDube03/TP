@@ -1,0 +1,18 @@
+{
+  "name": "DOCDON Verification App",
+  "short_name": "DOCDON",
+  "description": "Secure Document & Identity Verification App",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icons/docdon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

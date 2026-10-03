@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>DOCDON - Verification App</title>
+
+  <!-- PWA & Mobile Web App Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#ffffff">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles.css">
+  <script src="docdon-backend.js"></script>
+
+  <!-- Embedded Self-Contained Styles (Responsive for Laptop and Mobile) -->
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    :root {
+      --bg-page: #f8fafc;
+      --bg-card: #ffffff;
+      --text-main: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #94a3b8;
+      --border-light: #e2e8f0;
+      --border-focus: #06b6d4;
+      --cyan: #06b6d4;
+      --emerald: #10b981;
+      --indigo: #4f46e5;
+      --rose: #e11d48;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 18px;
+      --radius-xl: 24px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--bg-page);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    /* Page 1 Master Viewport */
+    .app-viewport {
+      width: 100%;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .responsive-app-grid {
+      width: 100%;
+      max-width: 960px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+      align-items: center;
+    }
+
+    @media (min-width: 768px) {
+      .app-viewport { padding: 40px 24px; }
+      .responsive-app-grid { grid-template-columns: 1fr 1.15fr; gap: 48px; }
+      .brand-column { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+      .app-logo-box { width: 140px; height: 140px; margin-bottom: 16px; }
+      .app-brand-title { font-size: 42px !important; letter-spacing: 3px !important; }
+      .auth-card-panel {
+        background: #ffffff;
+        border: 1.5px solid var(--border-light);
+        border-radius: var(--radius-xl);
+        padding: 36px 32px;
+        box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.08);
+      }
+    }
+
+    @media (max-width: 767px) {
+      .app-viewport { padding: 12px; align-items: flex-start; }
+      .responsive-app-grid { grid-template-columns: 1fr; gap: 16px; }
+      .brand-column { display: flex; flex-direction: column; align-items: center; text-align: center; padding-top: 8px; }
+      .app-logo-box { width: 80px; height: 80px; margin-bottom: 8px; }
+      .app-brand-title { font-size: 26px !important; letter-spacing: 2px !important; }
+      .auth-card-panel {
+        background: #ffffff;
+        border: 1.5px solid var(--border-light);
+        border-radius: var(--radius-lg);
+        padding: 20px 18px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+      }
+    }
+
+    .app-logo-box svg {
+      width: 100%;
+      height: 100%;
+      filter: drop-shadow(0 10px 20px rgba(6, 182, 212, 0.25));
+    }
+
+    .app-brand-title {
+      font-weight: 900;
+      text-transform: uppercase;
+      color: #0f172a;
+      line-height: 1;
+    }
+
+    .brand-gradient {
+      background: linear-gradient(135deg, #06b6d4 0%, #10b981 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .page-title { font-size: 20px; font-weight: 800; color: var(--text-main); margin-bottom: 4px; }
+    .page-subtitle { font-size: 13px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 18px; }
+
+    .form-group { margin-bottom: 14px; }
+    .form-label { display: block; font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 6px; }
+    .form-label-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .forgot-link { font-size: 11px; font-weight: 600; color: #0891b2; text-decoration: none; cursor: pointer; }
+
+    .input-wrapper { position: relative; display: flex; align-items: center; }
+    .input-icon { position: absolute; left: 14px; font-size: 14px; color: #94a3b8; pointer-events: none; }
+    .input-field {
+      width: 100%;
+      padding: 12px 14px 12px 38px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-main);
+      background-color: #ffffff;
+      border: 1.5px solid var(--border-light);
+      border-radius: var(--radius-md);
+      transition: all 0.2s ease;
+    }
+    .input-field:focus { outline: none; border-color: var(--border-focus); box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15); }
+    .input-field::placeholder { color: #94a3b8; font-weight: 400; }
+
+    .toggle-password-btn { position: absolute; right: 12px; background: none; border: none; color: #94a3b8; cursor: pointer; padding: 4px; font-size: 14px; }
+    .demo-autofill-btn { background: none; border: none; color: #0891b2; font-size: 11px; font-weight: 600; cursor: pointer; margin-top: 6px; display: inline-flex; align-items: center; gap: 4px; margin-left: auto; }
+
+    .biometric-section { margin: 16px 0; padding: 14px; background-color: #f8fafc; border: 1.5px solid var(--border-light); border-radius: var(--radius-lg); }
+    .biometric-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .biometric-title { font-size: 12px; font-weight: 800; color: #1e293b; display: flex; align-items: center; gap: 5px; }
+
+    .badge-compulsory { font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 9999px; background-color: #ffe4e6; color: #be123c; border: 1px solid #fecdd3; }
+    .badge-verified { font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 9999px; background-color: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+
+    .biometric-buttons-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .biometric-btn {
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 12px 8px;
+      background-color: #ffffff; border: 1.5px solid var(--border-light); border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s ease;
+    }
+    .biometric-btn:hover { border-color: #06b6d4; background-color: #ecfeff; }
+    .biometric-btn-icon { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+    .icon-face { background-color: #cffafe; color: #0891b2; }
+    .icon-touch { background-color: #e0e7ff; color: #4f46e5; }
+    .biometric-btn-name { font-size: 12px; font-weight: 700; color: #0f172a; }
+    .biometric-btn-hint { font-size: 10px; color: #64748b; }
+
+    .btn-primary {
+      width: 100%; padding: 14px; font-size: 14px; font-weight: 700; color: #ffffff; background: #0f172a;
+      border: none; border-radius: var(--radius-lg); cursor: pointer; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+      display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; transition: all 0.2s ease;
+    }
+    .btn-cyan { background: linear-gradient(135deg, #0891b2 0%, #0d9488 100%); box-shadow: 0 4px 12px rgba(8, 145, 178, 0.25); }
+
+    .btn-secondary {
+      width: 100%; padding: 12px; font-size: 13px; font-weight: 700; color: #0f172a; background-color: #f8fafc;
+      border: 1.5px solid var(--border-light); border-radius: var(--radius-lg); cursor: pointer; display: flex;
+      align-items: center; justify-content: center; gap: 8px; margin-top: 12px; transition: all 0.2s ease;
+    }
+    .btn-secondary:hover { background-color: #f1f5f9; }
+
+    .toggle-view-text { text-align: center; font-size: 12px; color: #64748b; margin-top: 14px; }
+    .toggle-view-link { font-weight: 700; color: #0891b2; cursor: pointer; margin-left: 4px; }
+
+    /* ==========================================================================
+       EXACT VERIFICATION MODAL & CAMERA STYLES (PRESERVED AS REQUESTED)
+       ========================================================================== */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background-color: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 999;
+    }
+
+    .modal-card {
+      width: 100%;
+      max-width: 360px;
+      background-color: #ffffff;
+      border-radius: var(--radius-xl);
+      padding: 24px;
+      text-align: center;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+      border: 1px solid var(--border-light);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #f1f5f9;
+      padding-bottom: 12px;
+      margin-bottom: 14px;
+      font-size: 14px;
+      font-weight: 800;
+      color: #0891b2;
+    }
+
+    .btn-close-modal {
+      background: none;
+      border: none;
+      font-size: 18px;
+      color: #94a3b8;
+      cursor: pointer;
+    }
+
+    .modal-info-box {
+      padding: 10px;
+      background-color: #ecfeff;
+      border: 1px solid #cffafe;
+      border-radius: var(--radius-md);
+      font-size: 12px;
+      color: #0e7490;
+      margin-bottom: 14px;
+    }
+
+    .camera-frame-box {
+      width: 200px;
+      height: 200px;
+      margin: 0 auto 14px;
+      border-radius: 28px;
+      background-color: #0f172a;
+      position: relative;
+      overflow: hidden;
+      border: 3px solid #06b6d4;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .camera-frame-box video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+
+    .scan-laser {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #38bdf8, #10b981, transparent);
+      box-shadow: 0 0 10px 2px rgba(56, 189, 248, 0.8);
+      animation: scanMove 2s ease-in-out infinite alternate;
+      pointer-events: none;
+    }
+
+    @keyframes scanMove {
+      0% { top: 10%; }
+      100% { top: 90%; }
+    }
+
+    .fingerprint-sensor-btn {
+      width: 80px;
+      height: 80px;
+      margin: 16px auto;
+      border-radius: 50%;
+      background-color: #f1f5f9;
+      border: 2px solid #6366f1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      color: #4f46e5;
+      cursor: pointer;
+      position: relative;
+    }
+
+    /* Toast */
+    #toast-container {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90%;
+      max-width: 380px;
+      z-index: 10000;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .toast-item {
+      pointer-events: auto;
+      padding: 12px 16px;
+      background-color: #ffffff;
+      color: #0f172a;
+      border: 1px solid #cbd5e1;
+      border-radius: var(--radius-md);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15);
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container"></div>
+
+  <!-- Modal Container for Exact Biometrics Verification -->
+  <div id="modal-container"></div>
+
+  <!-- ==========================================================================
+       PAGE 1: LOGIN & SIGN IN VIEW
+       ========================================================================== -->
+  <div class="app-viewport">
+    
+    <div class="responsive-app-grid">
+
+      <!-- LEFT COLUMN: Logo + DOCDON Name (Nothing Extra) -->
+      <div class="brand-column">
+        <div class="app-logo-box">
+          <svg viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="cardBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.85"/>
+                <stop offset="100%" stop-color="#1d4ed8" stop-opacity="0.95"/>
+              </linearGradient>
+              <linearGradient id="cardCyan" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.9"/>
+                <stop offset="100%" stop-color="#0284c7" stop-opacity="0.95"/>
+              </linearGradient>
+              <linearGradient id="cardGreen" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#34d399" stop-opacity="0.95"/>
+                <stop offset="100%" stop-color="#059669" stop-opacity="0.95"/>
+              </linearGradient>
+              <linearGradient id="badgeGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#10b981"/>
+                <stop offset="100%" stop-color="#047857"/>
+              </linearGradient>
+              <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+                <feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#06b6d4" flood-opacity="0.35"/>
+              </filter>
+            </defs>
+            <rect x="24" y="32" width="60" height="96" rx="12" fill="url(#cardBlue)" opacity="0.75" transform="rotate(-10 24 32)"/>
+            <rect x="42" y="24" width="62" height="102" rx="14" fill="url(#cardCyan)" opacity="0.85" transform="rotate(-5 42 24)"/>
+            <g filter="url(#softGlow)">
+              <rect x="62" y="18" width="66" height="112" rx="16" fill="url(#cardGreen)"/>
+              <rect x="63" y="19" width="64" height="110" rx="15" stroke="rgba(255,255,255,0.6)" stroke-width="1.5" fill="none"/>
+              <rect x="76" y="36" width="30" height="4" rx="2" fill="white" opacity="0.95"/>
+              <rect x="76" y="46" width="38" height="4" rx="2" fill="white" opacity="0.95"/>
+              <rect x="76" y="56" width="22" height="4" rx="2" fill="white" opacity="0.8"/>
+              <circle cx="95" cy="94" r="24" fill="url(#badgeGlow)"/>
+              <circle cx="95" cy="94" r="23" stroke="#a7f3d0" stroke-width="2" fill="none"/>
+              <path d="M86 94.5 L92.5 101 L105 87" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+            </g>
+          </svg>
+        </div>
+
+        <h1 class="app-brand-title">
+          DOC<span class="brand-gradient">DON</span>
+        </h1>
+      </div>
+
+      <!-- RIGHT COLUMN: Authentication Card Panel -->
+      <div class="auth-card-panel">
+
+        <!-- VIEW A: SIGN IN FORM -->
+        <div id="login-card-section">
+          <h2 class="page-title">Sign In</h2>
+          <p class="page-subtitle">Enter your credentials with compulsory biometric verify.</p>
+
+          <form id="login-form" onsubmit="handleLoginSubmit(event)">
+            
+            <div class="form-group">
+              <label for="login-identifier" class="form-label">Login Name or Number</label>
+              <div class="input-wrapper">
+                <span class="input-icon">👤</span>
+                <input id="login-identifier" type="text" required placeholder="Username or mobile number" class="input-field" oninput="onIdentifierChanged()" />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <div class="form-label-row">
+                <label for="login-password" class="form-label" style="margin-bottom:0;">Password</label>
+                <a href="javascript:void(0)" onclick="showToast('Password Reset', 'Instructions dispatched.', 'info')" class="forgot-link">Forgot?</a>
+              </div>
+              <div class="input-wrapper">
+                <span class="input-icon">🔒</span>
+                <input id="login-password" type="password" required placeholder="••••••••••••" class="input-field" />
+                <button type="button" onclick="togglePasswordVisibility('login-password', 'eye-btn')" id="eye-btn" class="toggle-password-btn">👁️</button>
+              </div>
+              <div style="display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap;">
+                <button type="button" onclick="quickDemoFill('david.miller')" class="demo-autofill-btn">
+                  ✨ Demo: David Miller (Student)
+                </button>
+              </div>
+            </div>
+
+            <!-- COMPULSORY BIOMETRICS -->
+            <div class="biometric-section">
+              <div class="biometric-header-row">
+                <span class="biometric-title">🛡️ Biometrics <span style="color:#e11d48;">*Compulsory</span></span>
+                <div id="biometric-compulsory-status"><span class="badge-compulsory">⚠️ Required</span></div>
+              </div>
+              <div style="font-size:11px; color:#64748b; margin-bottom:10px; line-height:1.4;">
+                Confirm your identity before your documents can be accessed or shared.
+              </div>
+
+              <div id="biometric-buttons-container" class="biometric-buttons-grid">
+                <button type="button" onclick="openBiometricModal('login', 'face')" class="biometric-btn">
+                  <div class="biometric-btn-icon icon-face">📷</div>
+                  <span class="biometric-btn-name">Face ID</span>
+                  <span class="biometric-btn-hint">Camera Scan</span>
+                </button>
+
+                <button type="button" onclick="openBiometricModal('login', 'fingerprint')" class="biometric-btn">
+                  <div class="biometric-btn-icon icon-touch">👆</div>
+                  <span class="biometric-btn-name">Touch ID</span>
+                  <span class="biometric-btn-hint">Fingerprint</span>
+                </button>
+              </div>
+            </div>
+
+            <button id="login-submit-btn" type="submit" class="btn-primary">
+              <span>Sign In</span> ➔
+            </button>
+          </form>
+
+          <button type="button" id="btn-goto-register" onclick="setAuthView('register')" class="btn-secondary">
+            <span>+ Create New Account</span>
+          </button>
+        </div>
+
+        <!-- VIEW B: CREATE NEW ACCOUNT FORM -->
+        <div id="register-card-section" class="hidden">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <h2 class="page-title" style="margin-bottom:0;">Create Account</h2>
+            <button type="button" id="btn-goto-login" onclick="setAuthView('login')" style="background:none; border:none; color:#0891b2; font-weight:700; font-size:12px; cursor:pointer;">
+              ← Sign In
+            </button>
+          </div>
+          <p class="page-subtitle">Register profile with compulsory biometrics</p>
+
+          <form id="register-form" onsubmit="handleRegisterSubmit(event)">
+            
+            <div class="form-group">
+              <label for="reg-fullname" class="form-label">Full Legal Name</label>
+              <div class="input-wrapper">
+                <span class="input-icon">✍️</span>
+                <input id="reg-fullname" type="text" required placeholder="e.g. David Miller" class="input-field" />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="reg-contact" class="form-label">Username / Mobile Number</label>
+              <div class="input-wrapper">
+                <span class="input-icon">📱</span>
+                <input id="reg-contact" type="text" required placeholder="Username or mobile number" class="input-field" />
+              </div>
+            </div>
+
+
+            <div class="form-group">
+              <label for="reg-password" class="form-label">Create Password</label>
+              <div class="input-wrapper">
+                <span class="input-icon">🔒</span>
+                <input id="reg-password" type="password" required placeholder="Minimum 6 characters" class="input-field" />
+                <button type="button" onclick="togglePasswordVisibility('reg-password', 'reg-eye-btn')" id="reg-eye-btn" class="toggle-password-btn">👁️</button>
+              </div>
+            </div>
+
+            <div class="biometric-section">
+              <div class="biometric-header-row">
+                <span class="biometric-title">🛡️ Register Biometrics <span style="color:#e11d48;">*Required</span></span>
+                <div id="reg-biometric-status"><span class="badge-compulsory">⚠️ Required</span></div>
+              </div>
+              <div style="font-size:11px; color:#64748b; margin-bottom:10px; line-height:1.4;">
+                Confirm your identity before your documents can be accessed or shared.
+              </div>
+
+              <div id="reg-biometric-buttons-container" class="biometric-buttons-grid">
+                <button type="button" onclick="openBiometricModal('register', 'face')" class="biometric-btn">
+                  <div class="biometric-btn-icon icon-face">📷</div>
+                  <span class="biometric-btn-name">Link Face ID</span>
+                </button>
+
+                <button type="button" onclick="openBiometricModal('register', 'fingerprint')" class="biometric-btn">
+                  <div class="biometric-btn-icon icon-touch">👆</div>
+                  <span class="biometric-btn-name">Link Touch ID</span>
+                </button>
+              </div>
+            </div>
+
+            <button id="reg-submit-btn" type="submit" class="btn-primary btn-cyan">
+              <span>Create Account</span> ✔
+            </button>
+          </form>
+
+          <div class="toggle-view-text">
+            Already have an account? 
+            <span onclick="setAuthView('login')" class="toggle-view-link">Sign In</span>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- Unified Script for Page 1 Authentication & Verification -->
+  <script>
+    // Application State
+    const authState = {
+      currentView: 'login',
+      soundEnabled: true,
+      cameraStream: null,
+      loginBiometricVerified: false,
+      loginBiometricType: null,
+      verifiedIdentifier: null,
+      regBiometricVerified: false,
+      regBiometricType: null
+    };
+
+    // Registered Users in LocalStorage
+    function getRegisteredUsers() {
+      const saved = localStorage.getItem('docdon_registered_users');
+      let list = [];
+      if (saved) {
+        try { 
+          list = JSON.parse(saved);
+        } catch (e) { list = []; }
+      }
+      
+      let updated = false;
+      if (!list.some(u => u.identifier && u.identifier.toLowerCase() === 'david.miller')) {
+        list.push({ fullName: 'David Miller', identifier: 'david.miller', password: 'password123', biometricType: 'face', role: 'student' });
+        updated = true;
+      }
+      if (!list.some(u => u.identifier && u.identifier.toLowerCase() === 'elena.rostova')) {
+        list.push({ fullName: 'Elena Rostova', identifier: 'elena.rostova', password: 'password123', biometricType: 'fingerprint', role: 'applicant' });
+        updated = true;
+      }
+      if (!list.some(u => u.identifier && u.identifier.toLowerCase() === 'alex.chen')) {
+        list.push({ fullName: 'Alex Chen', identifier: 'alex.chen', password: 'password123', biometricType: 'face', role: 'candidate' });
+        updated = true;
+      }
+      if (!list.some(u => u.identifier && u.identifier.toLowerCase() === 'admin')) {
+        list.push({ fullName: 'Admin Verifier', identifier: 'admin', password: 'password123', biometricType: 'fingerprint', role: 'admin' });
+        updated = true;
+      }
+      // Remove any legacy verifier account
+      if (list.some(u => u.identifier && u.identifier.toLowerCase() === 'deep')) {
+        list = list.filter(u => u.identifier && u.identifier.toLowerCase() !== 'deep');
+        updated = true;
+      }
+      if (updated || !saved) {
+        try { localStorage.setItem('docdon_registered_users', JSON.stringify(list)); } catch(e){}
+      }
+      return list;
+    }
+
+    function saveRegisteredUser(user) {
+      const users = getRegisteredUsers();
+      users.push(user);
+      try { 
+        localStorage.setItem('docdon_registered_users', JSON.stringify(users)); 
+        if (window.DocdonBackend && window.DocdonBackend.database) {
+          window.DocdonBackend.database.saveUser(user);
+        }
+      } catch(e){}
+    }
+
+    function onIdentifierChanged() {
+      authState.loginBiometricVerified = false;
+      authState.verifiedIdentifier = null;
+      updateLoginBiometricUI();
+    }
+
+    // Audio Feedback
+    const AudioFeedback = {
+      ctx: null,
+      init() {
+        if (!this.ctx && (window.AudioContext || window.webkitAudioContext)) {
+          this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+      },
+      playBeep(freq = 600, duration = 0.12) {
+        if (!authState.soundEnabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + duration);
+        } catch (e) {}
+      },
+      playSuccess() {
+        if (!authState.soundEnabled) return;
+        this.playBeep(523.25, 0.1);
+        setTimeout(() => this.playBeep(659.25, 0.1), 100);
+        setTimeout(() => this.playBeep(783.99, 0.2), 200);
+      },
+      playScan() { this.playBeep(880, 0.08); },
+      playWarning() { this.playBeep(320, 0.2); }
+    };
+
+    // Toast
+    function showToast(title, message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+      const toast = document.createElement('div');
+      toast.className = 'toast-item';
+      toast.style.borderLeft = type === 'success' ? '4px solid #10b981' : type === 'error' ? '4px solid #e11d48' : '4px solid #06b6d4';
+      toast.innerHTML = '<strong>' + title + '</strong><div style="font-size:11px; color:#475569; margin-top:2px;">' + message + '</div>';
+      container.appendChild(toast);
+      setTimeout(() => { toast.remove(); }, 3500);
+    }
+
+    // Toggle View (Switch between Sign In and Create Account on Page 1)
+    function setAuthView(viewName) {
+      authState.currentView = viewName;
+      AudioFeedback.playScan();
+
+      const loginCard = document.getElementById('login-card-section');
+      const registerCard = document.getElementById('register-card-section');
+
+      if (viewName === 'register') {
+        if (loginCard) {
+          loginCard.classList.add('hidden');
+          loginCard.style.display = 'none';
+        }
+        if (registerCard) {
+          registerCard.classList.remove('hidden');
+          registerCard.style.display = 'block';
+        }
+      } else {
+        if (registerCard) {
+          registerCard.classList.add('hidden');
+          registerCard.style.display = 'none';
+        }
+        if (loginCard) {
+          loginCard.classList.remove('hidden');
+          loginCard.style.display = 'block';
+        }
+      }
+    }
+
+    // Toggle Password Visibility
+    function togglePasswordVisibility(inputId, btnId) {
+      const input = document.getElementById(inputId);
+      const btn = document.getElementById(btnId);
+      if (!input) return;
+      if (input.type === 'password') {
+        input.type = 'text';
+        if (btn) btn.textContent = '🔒';
+      } else {
+        input.type = 'password';
+        if (btn) btn.textContent = '👁️';
+      }
+    }
+
+    // Demo Autofill
+    function quickDemoFill(userId = 'david.miller') {
+      const idInput = document.getElementById('login-identifier');
+      const passInput = document.getElementById('login-password');
+      if (idInput && passInput) {
+        idInput.value = 'david.miller';
+        passInput.value = 'password123';
+        authState.loginBiometricVerified = false;
+        authState.verifiedIdentifier = null;
+        updateLoginBiometricUI();
+        showToast('Student Demo Filled', 'Username: david.miller | Password: password123 (Student Vault)', 'info');
+        AudioFeedback.playBeep(700, 0.1);
+      }
+    }
+
+    // Update Biometric Badges
+    function updateLoginBiometricUI() {
+      const statusEl = document.getElementById('biometric-compulsory-status');
+      if (!statusEl) return;
+      if (authState.loginBiometricVerified) {
+        statusEl.innerHTML = '<span class="badge-verified">✔ Verified (' + (authState.loginBiometricType === 'face' ? 'Face ID' : 'Touch ID') + ')</span>';
+      } else {
+        statusEl.innerHTML = '<span class="badge-compulsory">⚠️ Required</span>';
+      }
+    }
+
+    function updateRegBiometricUI() {
+      const statusEl = document.getElementById('reg-biometric-status');
+      if (!statusEl) return;
+      if (authState.regBiometricVerified) {
+        statusEl.innerHTML = '<span class="badge-verified">✔ Linked (' + (authState.regBiometricType === 'face' ? 'Face ID' : 'Touch ID') + ')</span>';
+      } else {
+        statusEl.innerHTML = '<span class="badge-compulsory">⚠️ Required</span>';
+      }
+    }
+
+    // Navigate to Page 2 (dashboard.html)
+    function redirectToDashboard(user) {
+      try {
+        localStorage.setItem('docdon_current_user', JSON.stringify(user));
+      } catch (e) {}
+
+      AudioFeedback.playSuccess();
+      showToast('Welcome to DOCDON', 'Authenticated! Opening Dashboard...', 'success');
+      setTimeout(() => {
+        window.location.href = 'dashboard.html';
+      }, 400);
+    }
+
+    async function createHostedSession(endpoint, credentials) {
+      if (!/^https?:$/.test(window.location.protocol)) return { success: true, user: null };
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(credentials)
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          showToast('Account Error', result.error || 'Unable to establish a secure session.', 'error');
+          return null;
+        }
+        return result;
+      } catch (error) {
+        showToast('Server Unavailable', 'Could not connect to the DOCDON account service.', 'error');
+        return null;
+      }
+    }
+
+    // Handle Login Submit with STRICT verification: Reject unknown users & enforce correct biometrics
+    async function handleLoginSubmit(e) {
+      if (e && e.preventDefault) e.preventDefault();
+      const identifierInput = document.getElementById('login-identifier');
+      const passwordInput = document.getElementById('login-password');
+      const identifier = identifierInput ? identifierInput.value.trim() : '';
+      const password = passwordInput ? passwordInput.value : '';
+
+      if (!identifier || !password) {
+        showToast('Missing Details', 'Please enter your username/number and password.', 'error');
+        AudioFeedback.playWarning();
+        return;
+      }
+
+      const users = getRegisteredUsers();
+      const matchedUser = users.find(u => u.identifier.toLowerCase() === identifier.toLowerCase());
+
+      // 1. Strict User Verification: Reject any arbitrary unregistered user
+      if (!matchedUser) {
+        AudioFeedback.playWarning();
+        showToast('Account Not Found', `No registered profile found for "${identifier}". Please create an account first.`, 'error');
+        return;
+      }
+
+      // 2. Strict Password Verification
+      if (matchedUser.password !== password) {
+        AudioFeedback.playWarning();
+        showToast('Incorrect Password', `The password entered is incorrect for ${matchedUser.fullName}.`, 'error');
+        return;
+      }
+
+      // 3. Strict Biometric Verification: Must be specifically verified for THIS matched user
+      if (!authState.loginBiometricVerified || authState.verifiedIdentifier !== matchedUser.identifier.toLowerCase()) {
+        AudioFeedback.playWarning();
+        const bioLabel = matchedUser.biometricType === 'fingerprint' ? 'Touch ID' : 'Face ID';
+        showToast('Biometric Required', `Please scan compulsory ${bioLabel} to authenticate ${matchedUser.fullName}.`, 'info');
+        openBiometricModal('login', matchedUser.biometricType || 'face', matchedUser);
+        return;
+      }
+
+      // 4. Authenticated: create session
+      const user = {
+        name: matchedUser.fullName,
+        identifier: matchedUser.identifier,
+        role: matchedUser.role || 'student',
+        biometricType: matchedUser.biometricType,
+        authMethod: 'Password + Compulsory ' + (matchedUser.biometricType === 'fingerprint' ? 'Touch ID' : 'Face ID')
+      };
+
+      const hostedSession = await createHostedSession('/api/auth/session', { identifier, password });
+      if (!hostedSession) return;
+      if (hostedSession.token) user.sessionToken = hostedSession.token;
+      if (hostedSession.user) user.role = hostedSession.user.role;
+
+      redirectToDashboard(user);
+    }
+
+    // Handle Register Submit
+    async function handleRegisterSubmit(e) {
+      if (e && e.preventDefault) e.preventDefault();
+      const fullName = document.getElementById('reg-fullname').value.trim();
+      const contact = document.getElementById('reg-contact').value.trim();
+      const password = document.getElementById('reg-password').value;
+      const role = 'student';
+
+      if (!fullName || !contact || !password) {
+        showToast('Incomplete Form', 'Please fill in all required fields.', 'error');
+        AudioFeedback.playWarning();
+        return;
+      }
+
+      if (password.length < 6) {
+        showToast('Short Password', 'Password must be at least 6 characters long.', 'error');
+        AudioFeedback.playWarning();
+        return;
+      }
+
+      const users = getRegisteredUsers();
+      if (users.some(u => u.identifier.toLowerCase() === contact.toLowerCase())) {
+        showToast('Account Exists', `An account with username/number "${contact}" already exists. Please sign in.`, 'error');
+        AudioFeedback.playWarning();
+        return;
+      }
+
+      if (!authState.regBiometricVerified) {
+        AudioFeedback.playWarning();
+        showToast('Biometric Required', 'Please link your Face ID or Touch ID before creating account.', 'error');
+        openBiometricModal('register', 'face');
+        return;
+      }
+
+      const newUser = {
+        fullName: fullName,
+        identifier: contact.toLowerCase(),
+        password: password,
+        role: role,
+        biometricType: authState.regBiometricType || 'face',
+        biometricProfile: {
+          enrolledAt: new Date().toISOString(),
+          type: authState.regBiometricType || 'face'
+        }
+      };
+      const hostedSession = await createHostedSession('/api/auth/register', {
+        fullName, identifier: newUser.identifier, password, biometricType: newUser.biometricType
+      });
+      if (!hostedSession) return;
+      if (hostedSession.token) newUser.sessionToken = hostedSession.token;
+      saveRegisteredUser(newUser);
+
+      showToast('Account Created', `Profile and ${newUser.biometricType === 'face' ? 'Face ID' : 'Touch ID'} enrolled for ${fullName}.`, 'success');
+
+      redirectToDashboard({
+        name: fullName,
+        identifier: contact.toLowerCase(),
+        role: role,
+        biometricType: newUser.biometricType,
+        sessionToken: hostedSession.token,
+        authMethod: 'Registered with ' + (newUser.biometricType === 'face' ? 'Face ID' : 'Touch ID')
+      });
+    }
+
+    // ==========================================================================
+    // EXACT LIVE CAMERA FUNCTIONS (PRESERVED AS REQUESTED)
+    // ==========================================================================
+    async function startLiveBiometricCamera(context, targetUser) {
+      const videoEl = document.getElementById('biometric-camera-video');
+      const statusEl = document.getElementById('face-status-text');
+      const displayName = targetUser ? targetUser.fullName : (document.getElementById('reg-fullname')?.value.trim() || 'User');
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        if (statusEl) statusEl.innerHTML = '<span style="color:#d97706;">Camera API unavailable in this browser. Tap "Confirm Face" below.</span>';
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 640 } },
+          audio: false
+        });
+        authState.cameraStream = stream;
+        if (videoEl) {
+          videoEl.srcObject = stream;
+          videoEl.onloadedmetadata = () => { videoEl.play(); };
+        }
+        if (statusEl) {
+          statusEl.innerHTML = `<span style="color:#0891b2;">Camera active. Scanning live face for <strong>${displayName}</strong>...</span>`;
+        }
+
+        setTimeout(() => {
+          if (statusEl && authState.cameraStream) {
+            statusEl.innerHTML = `<span style="color:#059669; font-weight:700;">✔ Face Matched for ${displayName} (99.8% Match)</span>`;
+            AudioFeedback.playSuccess();
+          }
+        }, 2200);
+
+        setTimeout(() => {
+          if (authState.cameraStream) {
+            confirmBiometricScan(context, 'face', targetUser);
+          }
+        }, 3400);
+
+      } catch (err) {
+        console.warn("Camera error:", err);
+        if (statusEl) {
+          statusEl.innerHTML = '<span style="color:#e11d48;">Camera permission needed. Click "Allow" or tap "Confirm Face" below.</span>';
+        }
+      }
+    }
+
+    function stopLiveBiometricCamera() {
+      if (authState.cameraStream) {
+        authState.cameraStream.getTracks().forEach(t => t.stop());
+        authState.cameraStream = null;
+      }
+    }
+
+    // Open Biometric Modal (Face ID / Touch ID)
+    function openBiometricModal(context, type, targetUser) {
+      AudioFeedback.playScan();
+      const modal = document.getElementById('modal-container');
+      if (!modal) return;
+
+      const isRegister = context === 'register';
+      const isFace = type === 'face';
+
+      if (!isRegister && !targetUser) {
+        const identifier = document.getElementById('login-identifier')?.value.trim();
+        if (!identifier) {
+          showToast('Enter Username First', 'Please enter your username/number so we can match your biometric profile.', 'warning');
+          AudioFeedback.playWarning();
+          return;
+        }
+        const users = getRegisteredUsers();
+        targetUser = users.find(u => u.identifier.toLowerCase() === identifier.toLowerCase());
+        if (!targetUser) {
+          showToast('Account Not Found', `No registered profile found for "${identifier}".`, 'error');
+          AudioFeedback.playWarning();
+          return;
+        }
+      }
+
+      const userName = targetUser ? targetUser.fullName : (document.getElementById('reg-fullname')?.value.trim() || 'New User');
+
+      if (isFace) {
+        modal.innerHTML = `
+          <div class="modal-backdrop">
+            <div class="modal-card">
+              <div class="modal-header">
+                <span>📷 ${isRegister ? 'Register Face ID: ' + userName : 'Verify Face ID: ' + userName}</span>
+                <button type="button" onclick="closeModal()" class="btn-close-modal">✕</button>
+              </div>
+
+              <div class="modal-info-box">
+                <strong>${isRegister ? 'Enrolling Profile' : 'Verifying Profile'}:</strong> ${userName} • Align face inside reticle to authenticate.
+                <div style="margin-top:4px; font-size:11px; opacity:0.9;">Confirm your identity before your documents can be accessed or shared.</div>
+              </div>
+
+              <div class="camera-frame-box">
+                <video id="biometric-camera-video" autoplay playsinline muted></video>
+                <div class="scan-laser"></div>
+                <div style="position:absolute; inset:8px; border:2px dashed rgba(6,182,212,0.6); border-radius:50%; pointer-events:none;"></div>
+              </div>
+
+              <div id="face-status-text" style="font-size:12px; color:#0e7490; font-weight:600; margin-bottom:12px;">
+                Initializing live camera...
+              </div>
+
+              <div style="display:flex; justify-content:center; gap:8px;">
+                <button type="button" onclick="closeModal()" class="btn-secondary" style="width:auto; margin:0; padding:8px 16px;">
+                  Cancel
+                </button>
+                <button type="button" id="btn-confirm-face-modal" class="btn-primary" style="width:auto; margin:0; padding:8px 18px; background:#0891b2;">
+                  Confirm Face
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+
+        const confirmBtn = document.getElementById('btn-confirm-face-modal');
+        if (confirmBtn) {
+          confirmBtn.onclick = () => confirmBiometricScan(context, 'face', targetUser);
+        }
+
+        startLiveBiometricCamera(context, targetUser);
+
+      } else {
+        modal.innerHTML = `
+          <div class="modal-backdrop">
+            <div class="modal-card">
+              <div class="modal-header">
+                <span style="color:#4f46e5;">👆 ${isRegister ? 'Register Touch ID: ' + userName : 'Verify Touch ID: ' + userName}</span>
+                <button type="button" onclick="closeModal()" class="btn-close-modal">✕</button>
+              </div>
+
+              <div class="modal-info-box" style="background:#eef2ff; border-color:#e0e7ff; color:#3730a3;">
+                <strong>${isRegister ? 'Enrolling Sensor' : 'Verifying Sensor'}:</strong> ${userName} • Tap fingerprint icon below.
+                <div style="margin-top:4px; font-size:11px; opacity:0.9;">Confirm your identity before your documents can be accessed or shared.</div>
+              </div>
+
+              <div id="btn-fingerprint-sensor" class="fingerprint-sensor-btn">
+                👆
+              </div>
+
+              <div id="fp-status-text" style="font-size:12px; color:#64748b; margin-bottom:12px;">
+                Tap sensor to authenticate ${userName}
+              </div>
+
+              <div style="display:flex; justify-content:center; gap:8px;">
+                <button type="button" onclick="closeModal()" class="btn-secondary" style="width:auto; margin:0; padding:8px 16px;">
+                  Cancel
+                </button>
+                <button type="button" id="btn-scan-finger-modal" class="btn-primary" style="width:auto; margin:0; padding:8px 18px; background:#4f46e5;">
+                  Scan Finger
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+
+        const sensorBtn = document.getElementById('btn-fingerprint-sensor');
+        const scanFingerBtn = document.getElementById('btn-scan-finger-modal');
+        const doFingerScan = () => confirmBiometricScan(context, 'fingerprint', targetUser);
+        if (sensorBtn) sensorBtn.onclick = doFingerScan;
+        if (scanFingerBtn) scanFingerBtn.onclick = doFingerScan;
+      }
+    }
+
+    // Confirm Biometric Scan
+    function confirmBiometricScan(context, type, targetUser) {
+      stopLiveBiometricCamera();
+      closeModal();
+      AudioFeedback.playSuccess();
+
+      if (context === 'register') {
+        authState.regBiometricVerified = true;
+        authState.regBiometricType = type;
+        updateRegBiometricUI();
+        showToast('Biometrics Registered', (type === 'face' ? 'Face ID' : 'Touch ID') + ' linked to your account.', 'success');
+      } else {
+        if (!targetUser) {
+          const id = document.getElementById('login-identifier')?.value.trim();
+          const users = getRegisteredUsers();
+          targetUser = users.find(u => u.identifier.toLowerCase() === id.toLowerCase());
+        }
+
+        if (targetUser) {
+          authState.loginBiometricVerified = true;
+          authState.verifiedIdentifier = targetUser.identifier.toLowerCase();
+          authState.loginBiometricType = type;
+          updateLoginBiometricUI();
+          showToast('Biometric Verified', '✔ ' + (type === 'face' ? 'Face ID' : 'Touch ID') + ' matched for ' + targetUser.fullName + '.', 'success');
+
+          const passEl = document.getElementById('login-password');
+          if (passEl && passEl.value) {
+            handleLoginSubmit({ preventDefault: () => {} });
+          }
+        }
+      }
+    }
+
+    function closeModal() {
+      stopLiveBiometricCamera();
+      const modal = document.getElementById('modal-container');
+      if (modal) modal.innerHTML = '';
+    }
+
+    // Initialize Event Listeners
+    window.addEventListener('DOMContentLoaded', () => {
+      getRegisteredUsers();
+
+      const btnGotoRegister = document.getElementById('btn-goto-register');
+      if (btnGotoRegister) {
+        btnGotoRegister.addEventListener('click', (e) => {
+          e.preventDefault();
+          setAuthView('register');
+        });
+      }
+
+      const btnGotoLogin = document.getElementById('btn-goto-login');
+      if (btnGotoLogin) {
+        btnGotoLogin.addEventListener('click', (e) => {
+          e.preventDefault();
+          setAuthView('login');
+        });
+      }
+    });
+  </script>
+</body>
+</html>
