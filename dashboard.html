@@ -12,6 +12,7 @@
   <meta name="theme-color" content="#ffffff">
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="styles.css">
+  <script src="config.js"></script>
   <script src="docdon-backend.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -6377,6 +6378,24 @@
       if (welcomeName) welcomeName.textContent = user.name || 'David Miller';
 
       agentMemory.userName = (user.name || 'David').split(' ')[0];
+      const savedGreeting = agentMemory.chatHistory.find(message =>
+        message.sender === 'agent' &&
+        typeof message.html === 'string' &&
+        message.html.includes('I am your DOCDON Lifecycle Agent.')
+      );
+      if (savedGreeting) {
+        const greetingName = agentMemory.userName.replace(/[&<>"']/g, character => ({
+          '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        })[character]);
+        const updatedGreeting = savedGreeting.html.replace(
+          /<strong>Hello [^!]*!<\/strong>/,
+          `<strong>Hello ${greetingName}!</strong>`
+        );
+        if (updatedGreeting !== savedGreeting.html) {
+          savedGreeting.html = updatedGreeting;
+          saveAgentMemory();
+        }
+      }
       updateSpeechBubble(`Hi ${agentMemory.userName}! Need help storing or mapping documents?`);
 
       const agentTitle = document.querySelector('.agent-header-title');
@@ -7038,8 +7057,8 @@
 
     // Initialize on Page Load & Real-Time Sync Listeners
     window.addEventListener('DOMContentLoaded', async () => {
-      loadCurrentUser();
       loadAgentMemory();
+      loadCurrentUser();
       await loadBackendUserProfile();
       await syncDashboardDocumentsFromServer();
       syncDashboardVaultDocs();

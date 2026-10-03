@@ -12,6 +12,7 @@
   <meta name="theme-color" content="#ffffff">
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="styles.css">
+  <script src="config.js"></script>
   <script src="docdon-backend.js"></script>
 
   <!-- Embedded Self-Contained Styles (Responsive for Laptop and Mobile) -->
@@ -742,14 +743,23 @@
         const response = await fetch(endpoint, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(credentials)
         });
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          showToast('Account Service Unavailable', 'The configured backend did not return an account response. Check the backend URL and deployment.', 'error');
+          return null;
+        }
         const result = await response.json();
         if (!response.ok || !result.success) {
           showToast('Account Error', result.error || 'Unable to establish a secure session.', 'error');
           return null;
         }
+        if (!result.token) {
+          showToast('Account Error', 'The account service did not establish a secure session.', 'error');
+          return null;
+        }
         return result;
       } catch (error) {
-        showToast('Server Unavailable', 'Could not connect to the DOCDON account service.', 'error');
+        showToast('Account Service Unavailable', 'Could not reach the configured DOCDON backend. Check the backend URL and try again.', 'error');
         return null;
       }
     }
@@ -1065,8 +1075,6 @@
           authState.verifiedIdentifier = targetUser.identifier.toLowerCase();
           authState.loginBiometricType = type;
           updateLoginBiometricUI();
-          showToast('Biometric Verified', '✔ ' + (type === 'face' ? 'Face ID' : 'Touch ID') + ' matched for ' + targetUser.fullName + '.', 'success');
-
           const passEl = document.getElementById('login-password');
           if (passEl && passEl.value) {
             handleLoginSubmit({ preventDefault: () => {} });

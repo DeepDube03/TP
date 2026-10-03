@@ -1,5 +1,15 @@
 # VerifiQ - Peer-to-Peer & Office Document Verification System
 
+## Running DOCDON authentication
+
+The login API is provided by the Node.js server in `server.js` (`POST /api/auth/session` and `POST /api/auth/register`). For a combined local frontend/backend, run `npm start` and open `http://localhost:3000`.
+
+GitHub Pages serves static files and cannot run this Node.js API. To host the frontend on GitHub Pages, deploy `server.js` and its project files to a Node.js host, then set `apiBaseUrl` in `config.js` to that backend's HTTPS origin (for example, `https://api.example.com`). The backend must allow requests from the frontend origin through CORS. The same configured backend origin is used for login and subsequent API requests. Do not put credentials or secrets in `config.js`.
+
+No `DATABASE_URL` is used; the backend persists its local database files. Set `DOCDON_SESSION_SECRET` to a private, stable secret on the Node.js host so sessions remain valid across server restarts. The server generates an ephemeral secret if this variable is omitted, which invalidates existing sessions when the process restarts.
+
+An empty `apiBaseUrl` uses same-origin API requests. If the account API cannot be reached or does not return a valid session token, login is stopped and no authenticated user is saved or redirected.
+
 **VerifiQ** is a comprehensive, multi-role identity and document verification web application built directly from the wireframe sketch and product specifications. It supports end-to-end peer-to-peer verification (Person A to Person B), live camera scanning with real-time OCR extraction, biometric identity gates, explicit privacy consent, automated AI verification, manual human review escalation, and office compliance queue management.
 
 ---

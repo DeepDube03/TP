@@ -8725,16 +8725,22 @@
     window.fetch = async function (url, options = {}) {
       if (/^https?:$/.test(window.location.protocol)) {
         const hostedUrl = typeof url === 'string' ? url : (url && url.url ? url.url : '');
+        const requestUrl = new URL(hostedUrl, window.location.origin);
+        const apiBaseUrl = String(window.DOCDON_CONFIG?.apiBaseUrl || '').trim().replace(/\/$/, '');
+        const isApiCall = /^\/(api\/|requirements|document-checklist|document-progress|documents\/|profile|roadmap|advisor\/)/.test(requestUrl.pathname);
+        let targetUrl = requestUrl;
+        if (isApiCall && apiBaseUrl && requestUrl.origin === window.location.origin) {
+          targetUrl = new URL(requestUrl.pathname + requestUrl.search, apiBaseUrl);
+        }
         let token = null;
         try { token = JSON.parse(localStorage.getItem('docdon_current_user') || 'null')?.sessionToken; } catch (e) {}
-        let sameOrigin = false;
-        try { sameOrigin = new URL(hostedUrl, window.location.origin).origin === window.location.origin; } catch (e) {}
-        if (token && sameOrigin) {
+        const backendOrigin = apiBaseUrl ? new URL(apiBaseUrl).origin : window.location.origin;
+        if (token && isApiCall && targetUrl.origin === backendOrigin) {
           const headers = new Headers(options.headers || (url instanceof Request ? url.headers : undefined));
           headers.set('Authorization', `Bearer ${token}`);
-          return originalFetch.call(this, url, { ...options, headers });
+          return originalFetch.call(this, targetUrl.href, { ...options, headers });
         }
-        return originalFetch.apply(this, arguments);
+        return originalFetch.call(this, isApiCall ? targetUrl.href : url, options);
       }
       const urlStr = typeof url === 'string' ? url : (url && url.url ? url.url : '');
       const isApiCall = urlStr.startsWith('/api/') || 
