@@ -102,7 +102,7 @@
   async function getDocuments() {
     const user = requireUser();
     if (/^https?:$/.test(location.protocol)) {
-      const response = await fetch('/api/documents');
+      const response = await fetch(apiUrl('/api/documents'));
       const result = await response.json();
       if (!response.ok || result.success === false) throw new Error(result.error || 'Could not load your DOCDON documents.');
       return result.documents || [];
@@ -114,7 +114,7 @@
   async function getAnalysis(documentId) {
     requireUser();
     if (/^https?:$/.test(location.protocol)) {
-      const response = await fetch('/api/documents/' + encodeURIComponent(documentId) + '/analysis');
+      const response = await fetch(apiUrl('/api/documents/' + encodeURIComponent(documentId) + '/analysis'));
       const result = await response.json();
       if (!response.ok || result.success === false) throw new Error(result.error || 'Could not load document analysis.');
       return result;

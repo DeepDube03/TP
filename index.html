@@ -738,7 +738,7 @@
       let destination = 'dashboard.html';
       if (user.sessionToken) {
         try {
-          const response = await fetch('/api/profile', { headers: { Authorization: `Bearer ${user.sessionToken}` } });
+          const response = await fetch(apiUrl('/api/profile'), { headers: { Authorization: `Bearer ${user.sessionToken}` } });
           const result = await response.json();
           if (!response.ok || !result.success || !result.profile) throw new Error(result.error || 'Could not load your profile.');
           destination = result.profile.profileCompleted ? 'dashboard.html' : 'profile.html';
@@ -777,7 +777,7 @@
     async function createHostedSession(endpoint, credentials) {
       if (!/^https?:$/.test(window.location.protocol)) return { success: true, user: null };
       try {
-        const response = await fetch(endpoint, {
+        const response = await fetch(apiUrl(endpoint), {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(credentials)
         });
         const contentType = response.headers.get('content-type') || '';
@@ -823,7 +823,7 @@
       // demo/offline fallback and may not exist on another device or browser.
       if (hostedMode) {
         try {
-          const response = await fetch('/api/auth/lookup', {
+          const response = await fetch(apiUrl('/api/auth/lookup'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ identifier, password })
@@ -896,13 +896,13 @@
       };
 
       const hostedSession = recoverLocalAccount
-        ? await createHostedSession('/api/auth/register', {
+        ? await createHostedSession(apiUrl('/api/auth/register'), {
             fullName: matchedUser.fullName,
             identifier: matchedUser.identifier,
             password,
             biometricType: matchedUser.biometricType || 'face'
           })
-        : await createHostedSession('/api/auth/session', { identifier, password });
+        : await createHostedSession(apiUrl('/api/auth/session'), { identifier, password });
       if (!hostedSession) return;
       if (hostedSession.token) user.sessionToken = hostedSession.token;
       if (hostedSession.user) user.role = hostedSession.user.role;
@@ -955,7 +955,7 @@
           type: authState.regBiometricType || 'face'
         }
       };
-      const hostedSession = await createHostedSession('/api/auth/register', {
+      const hostedSession = await createHostedSession(apiUrl('/api/auth/register'), {
         fullName, identifier: newUser.identifier, password, biometricType: newUser.biometricType
       });
       if (!hostedSession) return;

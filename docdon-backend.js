@@ -5242,7 +5242,7 @@
 
       if (typeof window !== 'undefined' && typeof window.fetch === 'function') {
         try {
-          const resp = await window.fetch('/api/ocr/inspect', {
+          const resp = await window.fetch(window.apiUrl('/api/ocr/inspect'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -8697,7 +8697,7 @@
   const runLocalReviewDocument = api.reviewDocument.bind(api);
   const isHostedApplication = () => typeof window !== 'undefined' && /^https?:$/.test(window.location.protocol);
   const postHostedDocument = async (endpoint, payload) => {
-    const response = await window.fetch(endpoint, {
+    const response = await window.fetch(window.apiUrl(endpoint), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload || {})
@@ -8723,23 +8723,21 @@
     ? postHostedDocument(`/api/documents/${encodeURIComponent(documentId)}/review`, payload)
     : runLocalReviewDocument(documentId, payload);
 
-  // Install a mock-fetch interceptor so frontend code can call both window.DocdonAPI
-  // AND standard `fetch('/api/...')` without requiring a running node process!
+  // Install a fetch interceptor so API calls work both on hosted deployments
+  // and in the existing file:// local demo workflow.
   if (typeof window !== 'undefined' && window.fetch) {
     const originalFetch = window.fetch;
     window.fetch = async function (url, options = {}) {
       if (/^https?:$/.test(window.location.protocol)) {
         const hostedUrl = typeof url === 'string' ? url : (url && url.url ? url.url : '');
         const requestUrl = new URL(hostedUrl, window.location.origin);
-        const apiBaseUrl = String(window.DOCDON_CONFIG?.apiBaseUrl || '').trim().replace(/\/$/, '');
-        const isApiCall = /^\/(api\/|requirements|document-checklist|document-progress|documents\/|profile|roadmap|advisor\/)/.test(requestUrl.pathname);
-        let targetUrl = requestUrl;
-        if (isApiCall && apiBaseUrl && requestUrl.origin === window.location.origin) {
-          targetUrl = new URL(requestUrl.pathname + requestUrl.search, apiBaseUrl);
-        }
+        const isApiCall = /^\/(api(?:\/|$)|requirements|document-checklist|document-progress|documents\/|profile|roadmap|advisor\/)/.test(requestUrl.pathname);
+        const targetUrl = isApiCall
+          ? new URL(window.apiUrl(requestUrl.pathname + requestUrl.search), window.location.origin)
+          : requestUrl;
         let token = null;
         try { token = JSON.parse(localStorage.getItem('docdon_current_user') || 'null')?.sessionToken; } catch (e) {}
-        const backendOrigin = apiBaseUrl ? new URL(apiBaseUrl).origin : window.location.origin;
+        const backendOrigin = new URL(window.apiUrl('/'), window.location.origin).origin;
         if (token && isApiCall && targetUrl.origin === backendOrigin) {
           const headers = new Headers(options.headers || (url instanceof Request ? url.headers : undefined));
           // Login may supply a freshly issued token before replacing an older

@@ -2845,7 +2845,7 @@
         } catch (e) {}
       }
       try {
-        fetch('/api/documents/' + docId, { method: 'DELETE' }).catch(() => {});
+        fetch(apiUrl('/api/documents/' + encodeURIComponent(docId)), { method: 'DELETE' }).catch(() => {});
       } catch (e) {}
       try {
         window.dispatchEvent(new CustomEvent('docdon_vault_updated', { detail: { action: 'delete', docId: docId } }));
@@ -2950,7 +2950,7 @@
         return;
       }
       try {
-        const res = await fetch('/api/profile');
+        const res = await fetch(apiUrl('/api/profile'));
         if (res.ok) {
           const data = await res.json();
           if (data?.profile) applyDashboardUserProfile(data.profile);
@@ -2973,7 +2973,7 @@
         } catch (err) { console.warn('save local demo profile error:', err); return null; }
       }
       try {
-        const res = await fetch('/api/profile', {
+        const res = await fetch(apiUrl('/api/profile'), {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -3064,7 +3064,7 @@
 
       let turnResult = null;
       try {
-        const response = await fetch('/api/advisor/consult', {
+        const response = await fetch(apiUrl('/api/advisor/consult'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -4943,7 +4943,7 @@
       try { user = JSON.parse(localStorage.getItem('docdon_current_user')); } catch (e) {}
       const userKey = user?.identifier ? user.identifier.toLowerCase() : '';
       try {
-        const response = await fetch(`/api/documents?ownerId=${encodeURIComponent(userKey)}`);
+        const response = await fetch(apiUrl(`/api/documents?ownerId=${encodeURIComponent(userKey)}`));
         if (!response.ok) return;
         const result = await response.json();
         if (!result.success || !Array.isArray(result.documents)) return;
@@ -6850,7 +6850,7 @@
         </div>
       `;
       if (!previewData && /^https?:$/.test(window.location.protocol)) {
-        fetch(`/api/documents/${encodeURIComponent(docId)}/preview`).then(async response => {
+        fetch(apiUrl(`/api/documents/${encodeURIComponent(docId)}/preview`)).then(async response => {
           if (!response.ok) throw new Error('Preview unavailable');
           const previewBlob = await response.blob();
           const previewUrl = URL.createObjectURL(previewBlob);
@@ -6866,7 +6866,7 @@
         });
       }
       if (!rawOcrText && /^https?:$/.test(window.location.protocol)) {
-        fetch(`/api/documents/${encodeURIComponent(docId)}/analysis`).then(async response => {
+        fetch(apiUrl(`/api/documents/${encodeURIComponent(docId)}/analysis`)).then(async response => {
           if (!response.ok) throw new Error('Analysis unavailable');
           const analysis = await response.json();
           const transcript = analysis.academicVerification?.ocr?.text || analysis.ocr?.rawText || analysis.ocr?.raw_text || '';
@@ -7065,7 +7065,7 @@
       }
       if (authUser.sessionToken) {
         try {
-          const profileResponse = await fetch('/api/profile');
+          const profileResponse = await fetch(apiUrl('/api/profile'));
           const profileResult = await profileResponse.json();
           if (!profileResponse.ok || !profileResult.success) throw new Error('Could not load your account profile.');
           if (!profileResult.profile?.profileCompleted) { location.replace('profile.html'); return; }

@@ -82,7 +82,7 @@
       if (requiredCareer.has(profile.purpose) && !profile.career) profile.missingFields.push('career');
       return { success:true, profile };
     }
-    const response = await fetch(path, { ...options, headers: { ...(options.headers||{}), Authorization: `Bearer ${currentUser.sessionToken}`, ...(options.body ? {'Content-Type':'application/json'} : {}) } });
+    const response = await fetch(apiUrl(path), { ...options, headers: { ...(options.headers||{}), Authorization: `Bearer ${currentUser.sessionToken}`, ...(options.body ? {'Content-Type':'application/json'} : {}) } });
     let result; try { result = await response.json(); } catch (_) { throw new Error('The account service returned an invalid response. Please retry.'); }
     if (!response.ok || !result.success) throw new Error(result.error || 'Could not save your profile. Please retry.');
     return result;
