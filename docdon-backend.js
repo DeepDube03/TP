@@ -8742,7 +8742,10 @@
         const backendOrigin = apiBaseUrl ? new URL(apiBaseUrl).origin : window.location.origin;
         if (token && isApiCall && targetUrl.origin === backendOrigin) {
           const headers = new Headers(options.headers || (url instanceof Request ? url.headers : undefined));
-          headers.set('Authorization', `Bearer ${token}`);
+          // Login may supply a freshly issued token before replacing an older
+          // token in localStorage. Keep that explicit credential so Touch ID
+          // sign-in cannot retry profile loading with a stale session.
+          if (!headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
           return originalFetch.call(this, targetUrl.href, { ...options, headers });
         }
         return originalFetch.call(this, isApiCall ? targetUrl.href : url, options);

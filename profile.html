@@ -37,9 +37,6 @@
           <div class="field"><label for="purpose">What are you working toward? *</label><select id="purpose" name="purpose" required><option value="">Select a goal</option><option value="education">Education & higher studies</option><option value="college_admission">College admission</option><option value="career">Career pathway</option><option value="job">Job / employment</option><option value="employment_verification">Employment verification</option><option value="passport">Passport</option><option value="visa">Visa</option><option value="renting">Renting / tenancy</option><option value="bank_loan">Bank / loan</option><option value="government_work">Government work</option><option value="driving_licence">Driving licence</option></select></div>
           <div class="field" id="career-field"><label for="career">Course / career path *</label><select id="career" name="career"><option value="">Select a path</option><option value="engineering">Engineering</option><option value="mbbs">MBBS</option><option value="bds">BDS</option><option value="pharmacy">Pharmacy</option><option value="law">Law</option><option value="ca">Chartered Accountancy</option><option value="architecture">Architecture</option></select><small>Required for education and career goals.</small></div>
           <div class="field"><label for="schoolName">School / college</label><input id="schoolName" name="schoolName" maxlength="160" autocomplete="organization"></div>
-          <div class="field"><label for="course">Course / degree</label><input id="course" name="course" maxlength="160" placeholder="For example, B.Tech"></div>
-          <div class="field"><label for="branch">Branch / department</label><input id="branch" name="branch" maxlength="160" placeholder="For example, Computer Engineering"></div>
-          <div class="field"><label for="currentYear">Current year / semester</label><input id="currentYear" name="currentYear" maxlength="160" placeholder="For example, 2nd year"></div>
         </div>
         <div id="form-message" class="message" role="alert" aria-live="polite"></div>
         <div class="profile-actions"><button id="save-button" class="primary" type="submit">Save and continue</button><a id="cancel-link" class="secondary" href="index.html">Cancel</a></div>
@@ -94,7 +91,7 @@
     try {
       const result = await request('/api/profile');
       const profile = result.profile || {};
-      for (const field of ['fullName','dateOfBirth','location','educationStage','purpose','career','schoolName','course','branch','currentYear']) {
+      for (const field of ['fullName','dateOfBirth','location','educationStage','purpose','career','schoolName']) {
         const input = document.getElementById(field); if (input && profile[field]) input.value = profile[field];
       }
       document.getElementById('page-title').textContent = profile.profileCompleted ? 'My Profile' : 'Complete your profile';
@@ -109,7 +106,9 @@
     if (!form.reportValidity()) return;
     const date = document.getElementById('dateOfBirth').value;
     if (date && date > new Date().toISOString().slice(0,10)) { showMessage('Date of birth cannot be in the future.'); return; }
-    const profile = Object.fromEntries(['fullName','dateOfBirth','location','educationStage','purpose','career','schoolName','course','branch','currentYear'].map(id => [id, document.getElementById(id).value.trim()]));
+    const profile = Object.fromEntries(['fullName','dateOfBirth','location','educationStage','purpose','career','schoolName'].map(id => [id, document.getElementById(id).value.trim()]));
+    // Clear values from the retired fields for existing profiles.
+    Object.assign(profile, { course: '', branch: '', currentYear: '' });
     saveButton.disabled = true; saveButton.textContent='Saving…';
     try {
       const result = await request('/api/profile', { method:'PUT', body: JSON.stringify(profile) });

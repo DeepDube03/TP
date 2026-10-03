@@ -2919,22 +2919,23 @@
 
     function applyDashboardUserProfile(prof) {
       if (!prof) return;
-      if (prof.career) {
-        advisorSessionContext.careerPreference = prof.career;
-        agentMemory.careerPreference = prof.career;
-        agentMemory.futurePath = prof.career;
-        const careerMeta = window.DocdonBackend?.CAREER_METADATA?.[prof.career];
-        if (careerMeta) agentMemory.nextStep = careerMeta.pathName;
-      }
-      if (prof.purpose) advisorSessionContext.goal = prof.purpose;
-      if (prof.educationStage) {
-        advisorSessionContext.educationStage = prof.educationStage;
-        agentMemory.educationStage = prof.educationStage;
-        const stageByEducation = { '10th_completed': 'after_10th', '12th_pending': 'after_12th', '12th_completed': 'after_12th', 'graduate': 'college_university' };
-        agentMemory.activeStageId = stageByEducation[prof.educationStage] || null;
-      }
-      if (prof.location) advisorSessionContext.location = prof.location;
-      if (prof.applicationStage) advisorSessionContext.applicationStage = prof.applicationStage;
+      // The saved profile is authoritative on page load; clear stale advisor-memory
+      // values too, so an older chat choice cannot override a newer profile choice.
+      const profileCareer = String(prof.career || prof.careerPreference || '').trim();
+      advisorSessionContext.careerPreference = profileCareer || null;
+      agentMemory.careerPreference = profileCareer || null;
+      agentMemory.futurePath = profileCareer || null;
+      const careerMeta = window.DocdonBackend?.CAREER_METADATA?.[profileCareer];
+      agentMemory.nextStep = careerMeta?.pathName || null;
+
+      advisorSessionContext.goal = prof.purpose || null;
+      const profileEducation = String(prof.educationStage || '').trim();
+      advisorSessionContext.educationStage = profileEducation || null;
+      agentMemory.educationStage = profileEducation || null;
+      const stageByEducation = { '10th_completed': 'after_10th', '12th_pending': 'after_12th', '12th_completed': 'after_12th', 'graduate': 'college_university' };
+      agentMemory.activeStageId = stageByEducation[profileEducation] || null;
+      advisorSessionContext.location = prof.location || null;
+      advisorSessionContext.applicationStage = prof.applicationStage || null;
       saveAgentMemory();
       updateRoadmapUI();
     }
@@ -6177,8 +6178,9 @@
       if (!container) return;
 
       const educationLabels = { '10th_completed': 'Completed 10th', '12th_pending': 'Currently studying 11th/12th', '12th_completed': 'Completed 12th', 'graduate': 'Diploma or graduate' };
-      const educationLabel = educationLabels[advisorSessionContext.educationStage || agentMemory.educationStage] || 'Education level not set';
-      const careerKey = agentMemory.careerPreference || advisorSessionContext.careerPreference;
+      const educationStage = advisorSessionContext.educationStage || agentMemory.educationStage || '';
+      const educationLabel = educationLabels[educationStage] || 'Education level not set';
+      const careerKey = advisorSessionContext.careerPreference || agentMemory.careerPreference;
       const careerMeta = (window.DocdonBackend?.CAREER_METADATA && careerKey) 
         ? window.DocdonBackend.CAREER_METADATA[careerKey] 
         : null;
@@ -6196,52 +6198,37 @@
         }
       }
 
-      const hasMarksheet10 = isDocStoredInVault('10th Marksheet');
-      const hasLC10 = isDocStoredInVault('10th School Leaving Certificate (10th LC)');
-      const hasMarksheet12 = isDocStoredInVault('12th Marksheet');
-
+      const foundationDocs = educationStage === '10th_completed'
+        ? [{ name: '10th Marksheet', label: '10th marksheet' }, { name: '10th School Leaving Certificate (10th LC)', label: 'School leaving certificate' }]
+        : educationStage === '12th_pending'
+          ? [{ name: '10th Marksheet', label: '10th marksheet' }, { name: '10th School Leaving Certificate (10th LC)', label: 'School leaving certificate' }, { name: '12th Board Exam Admit Card / Hall Ticket', label: '12th admit card' }]
+          : educationStage === '12th_completed'
+            ? [{ name: '12th Marksheet', label: '12th marksheet' }]
+            : educationStage === 'graduate'
+              ? [{ name: 'Degree Certificate', alternateName: 'Diploma Certificate', label: 'Degree / diploma certificate' }]
+              : [];
+      const foundationStatus = (doc, index) => {
+        const stored = isDocStoredInVault(doc.name) || Boolean(doc.alternateName && isDocStoredInVault(doc.alternateName));
+        return `<span style="color:${stored ? '#059669' : '#d97706'};font-weight:700;">${doc.label}: ${stored ? 'Stored ✔' : 'Pending upload'}</span>`;
+      };
+      const foundationComplete = foundationDocs.length > 0 && foundationDocs.every(doc => isDocStoredInVault(doc.name) || Boolean(doc.alternateName && isDocStoredInVault(doc.alternateName)));
+      const foundationDetails = foundationDocs.length ? foundationDocs.map(foundationStatus).join(' · ') : 'Set your education level in Profile to personalize this section.';
       let timelineHtml = `
         <div class="roadmap-timeline-item">
-          <div class="roadmap-marker marker-done">✔</div>
+          <div class="roadmap-marker ${foundationComplete ? 'marker-done' : 'marker-current'}">${foundationComplete ? '✔' : '🎓'}</div>
           <div>
-            <div style="font-weight:700; color:#0f172a;">Your education level: ${educationLabel}</div>
-            <div style="font-size:10px; color:#64748b;">
-              Marksheet: ${hasMarksheet10 ? '<span style="color:#059669; font-weight:700;">Stored ✔</span>' : '<span style="color:#d97706;">Pending Upload ⚠️</span>'} | 
-              LC: ${hasLC10 ? '<span style="color:#059669; font-weight:700;">Stored ✔</span>' : '<span style="color:#d97706;">Pending Upload ⚠️</span>'}
-            </div>
+            <div style="font-weight:700; color:#0f172a;">Your profile education level: ${educationLabel}</div>
+            <div style="font-size:10px; color:#64748b;">${foundationDetails}</div>
           </div>
         </div>
       `;
 
       if (careerMeta) {
-        // Render 12th Foundation
-        const is12thPending = (advisorSessionContext.educationStage === '12th_pending' || agentMemory.educationStage === '12th_pending');
-        if (is12thPending) {
-          const hasAdmitCard = isDocStoredInVault('12th Board Exam Admit Card / Hall Ticket');
-          timelineHtml += `
-            <div class="roadmap-timeline-item">
-              <div class="roadmap-marker marker-current">⏳</div>
-              <div>
-                <div style="font-weight:700; color:#0891b2;">12th Standard (HSC) - In Progress / Appearing</div>
-                <div style="font-size:10px; color:#64748b;">
-                  12th Marksheet: <span style="color:#d97706; font-weight:700;">Awaited upon result</span> • Admit Card: ${hasAdmitCard ? '<span style="color:#059669; font-weight:700;">Stored ✔</span>' : '<span style="color:#d97706;">Pending Upload ⚠️</span>'} (Provisional for ${careerMeta.label})
-                </div>
-              </div>
-            </div>
-          `;
-        } else {
-          timelineHtml += `
-            <div class="roadmap-timeline-item">
-              <div class="roadmap-marker marker-done">✔</div>
-              <div>
-                <div style="font-weight:700; color:#0f172a;">12th Standard (HSC) - Qualifying Foundation</div>
-                <div style="font-size:10px; color:#64748b;">
-                  Marksheet: ${hasMarksheet12 ? '<span style="color:#059669; font-weight:700;">Stored ✔</span>' : '<span style="color:#d97706;">Pending Upload ⚠️</span>'} • Mandatory for ${careerMeta.label}
-                </div>
-              </div>
-            </div>
-          `;
-        }
+        const admissionDocs = (careerMeta.checklistDocs || []).map(doc => {
+          const stored = isDocStoredInVault(doc.name);
+          return `<div style="font-size:10px;color:#64748b;margin-top:3px;">${doc.name}: <span style="color:${stored ? '#059669' : '#d97706'};font-weight:700;">${stored ? 'Stored ✔' : 'Pending upload'}</span></div>`;
+        }).join('');
+        if (admissionDocs) timelineHtml += `<div class="roadmap-timeline-item"><div class="roadmap-marker marker-current">📋</div><div><div style="font-weight:700;color:#0891b2;">${careerMeta.label} admission documents</div>${admissionDocs}</div></div>`;
 
         // Render Career-Specific Steps (Replacing old career steps)
         careerMeta.roadmapSteps.forEach(step => {
