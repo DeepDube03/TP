@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>DOCDON - Visa Evidence Workspace</title>
+
+  <!-- PWA & Mobile Web App Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#ffffff">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles.css">
+  <script src="config.js"></script>
+  <script src="docdon-backend.js"></script>
+
+  <style>
+    /* Specific workspace enhancements */
+    .view-fade-in {
+      animation: fadeIn 0.3s ease-in-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container"></div>
+
+  <!-- Modal Container for OCR Analysis & Verification Actions -->
+  <div id="modal-container"></div>
+
+  <!-- Settings Slide-Over Drawer (Reused from Dashboard) -->
+  <div id="settings-drawer-backdrop" class="hidden drawer-backdrop" onclick="closeSettingsDrawer(event)">
+    <div class="settings-drawer" onclick="event.stopPropagation()">
+      <div>
+        <div class="drawer-header">
+          <span class="drawer-title">Settings & Profile</span>
+          <button onclick="toggleSettingsDrawer()" style="background:none; border:none; font-size:18px; color:#94a3b8; cursor:pointer;">✕</button>
+        </div>
+        <div class="drawer-profile-card">
+          <div class="profile-avatar-circle" id="drawer-user-avatar">D</div>
+          <div>
+            <div id="drawer-user-name" style="font-weight:800; font-size:14px; color:#0f172a;">DOCDON User</div>
+            <div id="drawer-user-id" style="font-size:11px; color:#64748b;">david.miller</div>
+            <div style="font-size:10px; color:#059669; font-weight:700; margin-top:2px;">● Signed-in DOCDON account</div>
+          </div>
+        </div>
+        <div class="drawer-menu-list">
+          <div class="drawer-menu-item" onclick="window.location.href='dashboard.html'">
+            <span>📁</span> Return to Dashboard
+          </div>
+          <div class="drawer-menu-item" onclick="resetVerificationFlow()">
+            <span>🔄</span> Start New Verification Session
+          </div>
+          <div class="drawer-menu-item" onclick="window.location.href='verification-result.html'">
+            <span>📊</span> Verification Summary & Report
+          </div>
+        </div>
+      </div>
+      <div>
+        <button onclick="window.location.href='dashboard.html'" class="btn-secondary" style="margin-bottom:8px;">
+          <span>←</span> Back to Dashboard
+        </button>
+        <button onclick="handleLogout()" class="btn-logout-drawer">
+          <span>🚪</span> Logout from DOCDON
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden File Input for Real Device Document Uploads -->
+  <input type="file" id="evidence-file-input" accept=".pdf,.jpg,.jpeg,.png" style="display:none;" onchange="handleEvidenceFileUpload(event)">
+
+  <!-- Master Page Container -->
+  <div class="page2-container">
+
+    <!-- Top Header: Consistent DOCDON Visual Identity -->
+    <header class="page2-header">
+      <div class="header-brand-left">
+        <a href="dashboard.html" style="text-decoration:none; display:flex; align-items:center; gap:8px;">
+          <span class="header-app-title">DOC<span class="brand-gradient">DON</span></span>
+        </a>
+        <span style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:9999px; background:#ecfeff; color:#0891b2; border:1px solid #cffafe; margin-left:6px;">
+          Visa Agent
+        </span>
+      </div>
+
+      <div class="header-user-right">
+        <div class="header-user-tag">
+          <span class="header-username" id="header-user-display">DOCDON User</span>
+          <span class="header-user-status" id="header-user-status">● Signed in</span>
+        </div>
+
+        <div class="header-logo-mini">
+          <svg viewBox="0 0 160 160" fill="none" style="width:100%; height:100%;">
+            <rect x="24" y="32" width="60" height="96" rx="12" fill="#3b82f6" opacity="0.8" transform="rotate(-10 24 32)"/>
+            <rect x="42" y="24" width="62" height="102" rx="14" fill="#38bdf8" opacity="0.9" transform="rotate(-5 42 24)"/>
+            <rect x="62" y="18" width="66" height="112" rx="16" fill="#34d399"/>
+            <circle cx="95" cy="94" r="22" fill="#10b981"/>
+            <path d="M86 94.5 L92.5 101 L105 87" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+
+        <button onclick="toggleSettingsDrawer()" class="btn-hamburger" title="Settings & Profile">
+          <div class="hamburger-line"></div>
+          <div class="hamburger-line"></div>
+          <div class="hamburger-line"></div>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Dynamic Container -->
+    <main class="page2-content" style="max-width: 1140px;">
+
+      <!-- ======================================================================
+           STAGE 1: VERIFICATION SETUP (Phase 2)
+           ====================================================================== -->
+      <section id="section-setup" class="view-fade-in">
+        <div style="margin-bottom: 20px; display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <a href="dashboard.html" style="font-size:12px; font-weight:700; color:#0891b2; text-decoration:none; display:inline-flex; align-items:center; gap:4px; margin-bottom:6px;">
+              ← Back to Dashboard
+            </a>
+            <h2 style="font-size:24px; font-weight:900; color:#0f172a;">
+              Start Document Verification
+            </h2>
+            <p style="font-size:13px; color:#64748b; margin-top:2px;">
+              Use your account details and application information to organize evidence for DOCDON document review.
+            </p>
+          </div>
+        </div>
+
+        <div class="setup-card">
+          <form id="verification-setup-form" onsubmit="handleSetupSubmit(event)">
+            
+            <!-- Applicant Information Sub-Header -->
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px; padding-bottom:8px; border-bottom:1.5px solid #f1f5f9;">
+              <span style="font-size:16px;">👤</span>
+              <h3 style="font-size:14px; font-weight:800; color:#0f172a; text-transform:uppercase; letter-spacing:0.5px;">
+                Applicant Information
+              </h3>
+            </div>
+
+            <div class="form-group">
+              <label for="setup-fullname" class="form-label">Full Legal Name <span style="color:#e11d48;">*</span></label>
+              <div class="input-wrapper">
+                <span class="input-icon">✍️</span>
+                <input id="setup-fullname" type="text" required placeholder="Enter your legal name" class="input-field" value="">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="setup-email" class="form-label">Email Address</label>
+              <div class="input-wrapper">
+                <span class="input-icon">✉️</span>
+                <input id="setup-email" type="email" placeholder="Account email (optional)" class="input-field">
+              </div>
+            </div>
+            <div class="form-group" style="margin-top:6px;">
+              <label for="setup-mode" class="form-label">What do you want to verify? <span style="color:#e11d48;">*</span></label>
+              <select id="setup-mode" class="input-field" style="padding-left:14px; cursor:pointer;">
+                <option value="visa" selected>🌐 Visa &amp; Travel Application</option>
+              </select>
+            </div>
+            <div id="life-fields" class="hidden">
+              <div class="form-group">
+                <label for="setup-dob" class="form-label">Date of Birth <span style="color:#e11d48;">*</span></label>
+                <div class="input-wrapper"><span class="input-icon">🎂</span><input id="setup-dob" type="date" class="input-field" ></div>
+              </div>
+            </div>
+            <div id="visa-fields">
+            <!-- Visa / Application Information Sub-Header -->
+            <div style="display:flex; align-items:center; gap:8px; margin:22px 0 14px; padding-bottom:8px; border-bottom:1.5px solid #f1f5f9;">
+              <span style="font-size:16px;">🌐</span>
+              <h3 style="font-size:14px; font-weight:800; color:#0f172a; text-transform:uppercase; letter-spacing:0.5px;">
+                Visa & Travel Information
+              </h3>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:14px;">
+              <div class="form-group">
+                <label for="setup-country" class="form-label">Destination Country <span style="color:#e11d48;">*</span></label>
+                <select id="setup-country" required class="input-field" style="padding-left:14px; cursor:pointer;">
+                  <option value="" disabled selected>Select destination</option>
+                  <option value="United Kingdom">United Kingdom</option>
+                  <option value="United States">United States</option>
+                  <option value="Canada">Canada</option>
+                  <option value="Australia">Australia</option>
+                  <option value="Schengen">Schengen</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="setup-visatype" class="form-label">Visa Type <span style="color:#e11d48;">*</span></label>
+                <select id="setup-visatype" required class="input-field" style="padding-left:14px; cursor:pointer;">
+                  <option value="" disabled selected>Select visa type</option>
+                  <option value="Student Visa">Student Visa</option>
+                  <option value="Tourist Visa">Tourist Visa</option>
+                  <option value="Work Visa">Work Visa</option>
+                  <option value="Business Visa">Business Visa</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="setup-purpose" class="form-label">Purpose of Travel <span style="color:#e11d48;">*</span></label>
+                <select id="setup-purpose" required class="input-field" style="padding-left:14px; cursor:pointer;">
+                  <option value="" disabled selected>Select purpose</option>
+                  <option value="Education">Education</option>
+                  <option value="Tourism">Tourism</option>
+                  <option value="Employment">Employment</option>
+                  <option value="Business">Business</option>
+                  <option value="Family Visit">Family Visit</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            </div>
+
+            </div>
+            <!-- Start Verification Button -->
+            <button type="submit" class="btn-primary" style="background: linear-gradient(135deg, #0891b2 0%, #10b981 100%); margin-top:20px; font-size:15px; padding:16px;">
+              <span>Start Verification</span> ➔
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <!-- ======================================================================
+           STAGE 2: TWO-COLUMN VERIFICATION WORKSPACE (Phases 3, 4, 5, 6, 7)
+           ====================================================================== -->
+      <section id="section-workspace" class="hidden view-fade-in">
+        
+        <!-- Workspace Header Bar -->
+        <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px; margin-bottom:18px;">
+          <div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:11px; font-weight:800; color:#0e7490; background:#cffafe; padding:2px 8px; border-radius:6px;" id="workspace-ver-id">
+                DOC-VER-2026-0001
+              </span>
+              <span style="font-size:12px; color:#64748b;">Applicant: <strong id="workspace-applicant-name" style="color:#0f172a;"></strong></span>
+              <span style="font-size:12px; color:#64748b;">• <span id="workspace-visa-info">Application details will appear here</span></span>
+            </div>
+            <h2 style="font-size:22px; font-weight:900; color:#0f172a; margin-top:4px;">
+              <span id="workspace-title">Visa Evidence Workspace</span>
+            </h2>
+          </div>
+
+          <div style="display:flex; gap:10px;">
+            <button onclick="triggerEvidenceUpload()" class="btn-secondary" style="margin:0; width:auto; padding:10px 16px; background:#ffffff;">
+              <span>📤 Upload Document</span>
+            </button>
+            <a href="verification-result.html" class="btn-primary" style="margin:0; width:auto; padding:10px 18px; text-decoration:none; background:linear-gradient(135deg, #059669 0%, #10b981 100%);">
+              <span>View Summary & Report ➔</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Two Column Grid -->
+        <div class="workspace-grid">
+          
+          <!-- ==========================================
+               LEFT / MAIN AREA: AI CONVERSATION (Phase 3)
+               ========================================== -->
+          <div class="chat-workspace-card">
+            
+            <!-- Chat Card Header -->
+            <div class="chat-card-header">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <div class="chat-avatar-mini chat-avatar-agent">🤖</div>
+                <div>
+                  <div style="font-weight:800; font-size:13px; color:#0f172a;">DOCDON Evidence Assistant</div>
+                  <div style="font-size:11px; color:#64748b;">Applicant declarations and DOCDON document processing</div>
+                </div>
+              </div>
+              <div class="agent-status-badge">
+                <span class="agent-dot-online"></span>
+                <span>Ready to collect information</span>
+              </div>
+            </div>
+
+            <!-- Message Stream Area -->
+            <div class="agent-chat-stream" id="chat-messages-stream">
+              <!-- Rendered dynamically by JavaScript -->
+            </div>
+
+            <!-- Suggestion Chips Bar -->
+            <div class="suggestion-chips-bar" id="suggestion-chips-bar">
+              <!-- Rendered dynamically -->
+            </div>
+
+            
+            
+
+            <!-- Interactive Chat Input Footer -->
+            <form id="chat-input-form" onsubmit="handleChatSubmit(event)" class="chat-input-bar">
+              <input id="chat-user-input" type="text" placeholder="Type your answer or select a suggestion..." class="chat-input-field" autocomplete="off">
+              <button type="submit" class="btn-chat-send" id="chat-send-btn">
+                <span>Send</span> ➔
+              </button>
+            </form>
+
+          </div>
+
+          <!-- ==========================================
+               RIGHT AREA: EVIDENCE TRACKER & PROGRESS (Phase 4 & 7)
+               ========================================== -->
+          <div class="evidence-tracker-card">
+            
+            <!-- Progress Section -->
+            <div>
+              <div class="progress-header-box">
+                <span style="font-size:14px; font-weight:900; color:#0f172a;">Verification Progress</span>
+                <span id="progress-count-label" style="font-size:12px; font-weight:800; color:#059669;">
+                  0 documents processed
+                </span>
+              </div>
+              <div class="progress-bar-track">
+                <div class="progress-bar-fill" id="progress-bar-fill" style="width: 0%;"></div>
+              </div>
+            </div>
+
+            <!-- Document results appear here after DOCDON processing. -->
+            <!-- Categories Checklist -->
+            <div id="evidence-categories" style="display:flex; flex-direction:column; gap:16px;"></div>
+
+            <!-- Upload Evidence Button CTA -->
+            <button onclick="triggerEvidenceUpload()" class="btn-secondary" style="margin-top:4px; padding:12px; background:#ecfeff; border-color:#a5f3fc; color:#0e7490;">
+              <span>📄 Upload Supporting Document</span>
+            </button>
+
+            <!-- Bottom Navigation -->
+            <div style="border-top:1px solid #f1f5f9; padding-top:12px; text-align:center;">
+              <a href="verification-result.html" style="font-size:12px; font-weight:800; color:#059669; text-decoration:none;">
+                Complete & Open Verification Report ➔
+              </a>
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+    </main>
+
+  </div>
+
+  <!-- DOCDON Verification Engine Service -->
+  <script src="verification-service.js"></script>
+  <script>
+    let currentLocalState = null;
+    let pendingEvidenceFile = null;
+    const chatPrompts = [
+      'What institution, host, or travel plan is relevant to this application?',
+      'What dates or timeframe are you planning for this travel?',
+      'Who will fund or sponsor the trip? You may answer “not sure” or “none”.'
+    ];
+    const evidenceTypes = [
+      ['passport', 'Passport'], ['bank_passbook_statement', 'Bank statement / proof of funds'],
+      ['address_proof', 'Address proof'], ['10th_marksheet', '10th marksheet'],
+      ['12th_marksheet', '12th marksheet'], ['degree_certificate', 'Degree certificate'],
+      ['10th_school_lc', 'School leaving certificate'], ['aadhaar_card', 'Aadhaar card'],
+      ['pan_card', 'PAN card'], ['other_custom', 'Other supporting document']
+    ];
+    const htmlSafe = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+    function showToast(title, message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+      const toast = document.createElement('div'); toast.className = 'toast-item';
+      toast.style.borderLeft = type === 'success' ? '4px solid #10b981' : type === 'error' ? '4px solid #e11d48' : '4px solid #06b6d4';
+      const heading = document.createElement('strong'); heading.textContent = title;
+      const body = document.createElement('div'); body.style.cssText = 'font-size:11px;color:#475569;margin-top:2px'; body.textContent = message;
+      toast.append(heading, body); container.appendChild(toast); setTimeout(() => toast.remove(), 4000);
+    }
+    function setUserLabels() {
+      const user = DocdonVerificationService.getUser();
+      const name = user.name || user.fullName || user.identifier || 'DOCDON User';
+      ['drawer-user-name','header-user-display'].forEach(id => { const e = document.getElementById(id); if (e) e.textContent = name; });
+      const status = document.getElementById('header-user-status'); if (status) status.textContent = '● Signed in';
+      const nameInput = document.getElementById('setup-fullname');
+      const emailInput = document.getElementById('setup-email');
+      if (nameInput && !nameInput.value) nameInput.value = user.name || user.fullName || '';
+      if (emailInput && !emailInput.value) emailInput.value = user.email || (String(user.identifier || '').includes('@') ? user.identifier : '');
+    }
+    function handleLogout() {
+      localStorage.removeItem('docdon_current_user');
+      location.replace('index.html');
+    }
+    function toggleSettingsDrawer() { document.getElementById('settings-drawer-backdrop')?.classList.toggle('hidden'); }
+    function closeSettingsDrawer(event) { if (!event || event.target.id === 'settings-drawer-backdrop') document.getElementById('settings-drawer-backdrop')?.classList.add('hidden'); }
+    function switchToSetupView() {
+      document.getElementById('section-setup').classList.remove('hidden');
+      document.getElementById('section-workspace').classList.add('hidden');
+    }
+    function switchToWorkspaceView() {
+      document.getElementById('section-setup').classList.add('hidden');
+      document.getElementById('section-workspace').classList.remove('hidden');
+      renderWorkspace();
+    }
+    function handleSetupSubmit(event) {
+      event.preventDefault();
+      try {
+        currentLocalState = DocdonVerificationService.startSession({
+          fullName: document.getElementById('setup-fullname').value,
+          email: document.getElementById('setup-email').value,
+          country: document.getElementById('setup-country').value,
+          visaType: document.getElementById('setup-visatype').value,
+          purpose: document.getElementById('setup-purpose').value
+        });
+        switchToWorkspaceView(); showToast('Verification started', 'Applicant declarations are saved for this account. Uploaded documents use DOCDON processing.', 'success');
+      } catch (error) { showToast('Could not start verification', error.message, 'error'); }
+    }
+    function renderWorkspace() {
+      if (!currentLocalState) return;
+      const s = currentLocalState, app = s.application || {};
+      document.getElementById('workspace-ver-id').textContent = 'VR-' + s.id.slice(0, 8).toUpperCase();
+      document.getElementById('workspace-applicant-name').textContent = s.applicant.fullName || 'Account holder';
+      document.getElementById('workspace-visa-info').textContent = [app.country, app.visaType, app.purpose].filter(Boolean).join(' • ');
+      document.getElementById('workspace-title').textContent = 'Visa Evidence Workspace';
+      const docs = s.documents || [];
+      const completed = docs.filter(d => /verified/i.test(d.status || '') && !/needs|pending|review/i.test(d.status || '')).length;
+      document.getElementById('progress-count-label').textContent = `${completed} verified • ${docs.length} processed`;
+      document.getElementById('progress-bar-fill').style.width = docs.length ? `${Math.min(100, docs.length * 20)}%` : '0%';
+      renderEvidence(docs); renderMessages(s);
+    }
+    function renderEvidence(docs) {
+      const container = document.getElementById('evidence-categories');
+      const groups = { 'IDENTITY': [], 'FINANCIAL': [], 'EDUCATION / EMPLOYMENT': [], 'OTHER SUPPORTING EVIDENCE': [] };
+      docs.forEach(doc => {
+        const name = String(doc.name || doc.documentType || 'Document');
+        const group = /passport|identity|aadhaar|pan/i.test(name) ? 'IDENTITY' : /bank|fund|financial/i.test(name) ? 'FINANCIAL' : /school|degree|employment|education|marksheet/i.test(name) ? 'EDUCATION / EMPLOYMENT' : 'OTHER SUPPORTING EVIDENCE';
+        groups[group].push(doc);
+      });
+      container.innerHTML = Object.entries(groups).filter(([,items]) => items.length).map(([group,items]) => `<div class="evidence-category-group"><span class="evidence-category-title">${htmlSafe(group)}</span>${items.map(doc => {
+        const status = doc.status || 'Processed'; const tone = /verified/i.test(status) && !/needs|pending|review/i.test(status) ? 'status-verified' : /review|pending/i.test(status) ? 'status-needs-review' : 'status-pending';
+        return `<div class="evidence-item-row"><span>${htmlSafe(doc.name)}</span><span class="status-badge ${tone}">${htmlSafe(status)}</span></div>`;
+      }).join('')}</div>`).join('') || '<p style="font-size:12px;color:#64748b">Uploaded evidence will appear here with the status returned by DOCDON.</p>';
+    }
+    function renderMessages(state) {
+      const stream = document.getElementById('chat-messages-stream');
+      const answers = state.answers || [];
+      let items = [{sender:'agent', text:'Hello. I can collect your application declarations and organize supporting evidence. Document checks are performed by DOCDON’s existing document service.'}];
+      answers.forEach(item => { items.push({sender:'user',text:item.answer}); items.push({sender:'agent',text:'Thank you. Your response is recorded as an applicant declaration; it is not independently verified.'}); });
+      if (answers.length < chatPrompts.length) items.push({sender:'agent',text:chatPrompts[answers.length]});
+      else items.push({sender:'agent',text:'You can upload supporting documents now. Their processing status and extracted analysis will appear in your report.'});
+      stream.innerHTML = items.map(item => `<div class="${item.sender === 'user' ? 'chat-msg-user' : 'chat-msg-agent'}"><div class="${item.sender === 'user' ? 'chat-bubble-user' : 'chat-bubble-agent'}">${htmlSafe(item.text)}</div></div>`).join('');
+      stream.scrollTop = stream.scrollHeight;
+      const chips = document.getElementById('suggestion-chips-bar');
+      chips.innerHTML = answers.length < chatPrompts.length ? '<span style="font-size:11px;color:#64748b">Responses are stored as self-declarations.</span>' : '';
+    }
+    function handleChatSubmit(event) {
+      event.preventDefault(); const input = document.getElementById('chat-user-input'); const answer = input.value.trim();
+      if (!answer || !currentLocalState) return;
+      const index = (currentLocalState.answers || []).length;
+      if (index >= chatPrompts.length) { showToast('Declarations complete', 'Upload supporting documents to continue.', 'info'); return; }
+      try { currentLocalState = DocdonVerificationService.addAnswer(chatPrompts[index], answer); input.value = ''; renderWorkspace(); }
+      catch (error) { showToast('Could not save response', error.message, 'error'); }
+    }
+    function selectSuggestion(value) { const input = document.getElementById('chat-user-input'); if (input) { input.value = value; input.focus(); } }
+    function triggerEvidenceUpload() { document.getElementById('evidence-file-input').click(); }
+    function handleEvidenceFileUpload(event) {
+      const file = event.target.files && event.target.files[0]; event.target.value = '';
+      if (!file) return;
+      pendingEvidenceFile = file;
+      const modal = document.getElementById('modal-container');
+      modal.innerHTML = `<div class="modal-backdrop" onclick="closeModal(event)"><div class="modal-card" onclick="event.stopPropagation()" style="text-align:left"><div class="modal-header"><span>📄 Classify supporting document</span><button type="button" onclick="closeModal()" class="btn-close-modal">✕</button></div><p class="modal-info-box">${htmlSafe(file.name)} — DOCDON will process this file using your authenticated account.</p><label class="form-label" for="evidence-type-select">Document type</label><select id="evidence-type-select" class="input-field" style="padding-left:14px;margin-bottom:14px">${evidenceTypes.map(([value,label]) => `<option value="${value}">${htmlSafe(label)}</option>`).join('')}</select><button type="button" onclick="commitEvidenceUpload()" class="btn-primary" style="margin:0">Upload & Process</button></div></div>`;
+    }
+    async function commitEvidenceUpload() {
+      if (!pendingEvidenceFile) return;
+      const file = pendingEvidenceFile, type = document.getElementById('evidence-type-select').value;
+      closeModal(); showToast('Document processing', 'Uploading to your DOCDON account for OCR and verification.', 'info');
+      try {
+        const { record } = await DocdonVerificationService.uploadEvidence(file, type, file.name);
+        currentLocalState = DocdonVerificationService.loadSession(); renderWorkspace();
+        showToast('Document processed', `${record.name}: ${record.status}`, 'success');
+      } catch (error) { showToast('Document upload failed', error.message, 'error'); }
+      finally { pendingEvidenceFile = null; }
+    }
+    function closeModal(event) { if (event && event.type === 'click' && event.target !== event.currentTarget) return; const modal = document.getElementById('modal-container'); if (modal) modal.innerHTML = ''; }
+    function resetVerificationFlow() {
+      if (!confirm('Start a new visa verification session? Existing documents in your DOCDON vault will remain unchanged.')) return;
+      DocdonVerificationService.clearSession(); currentLocalState = null; closeSettingsDrawer(); switchToSetupView();
+    }
+    window.addEventListener('DOMContentLoaded', () => {
+      try {
+        setUserLabels();
+        currentLocalState = DocdonVerificationService.loadSession();
+        if (currentLocalState) switchToWorkspaceView(); else switchToSetupView();
+      } catch (_) { /* Authentication helper redirects to the existing sign-in page. */ }
+    });
+  </script>
+</body>
+</html>

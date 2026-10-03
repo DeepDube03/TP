@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>DOCDON - Life Stage Documents</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#ffffff">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .ls-wrap { width:100%; max-width:1000px; margin:0 auto; padding:24px 16px 60px; display:flex; flex-direction:column; gap:20px; flex:1; }
+    .ls-back { font-size:12px; font-weight:700; color:#0891b2; text-decoration:none; cursor:pointer; background:none; border:none; padding:0; text-align:left; }
+    .ls-card { background:#fff; border:1.5px solid #e2e8f0; border-radius:24px; padding:20px; box-shadow:0 4px 20px rgba(0,0,0,.04); }
+    .ls-bar { height:8px; background:#e2e8f0; border-radius:9999px; overflow:hidden; margin-top:8px; }
+    .ls-bar > div { height:100%; background:linear-gradient(135deg,#06b6d4,#10b981); border-radius:9999px; transition:width .4s; }
+    .ls-grid { display:grid; grid-template-columns:1fr; gap:14px; }
+    @media (min-width:640px){ .ls-grid { grid-template-columns:1fr 1fr; } }
+    @media (min-width:900px){ .ls-grid { grid-template-columns:1fr 1fr 1fr; } }
+    .ls-stage { cursor:pointer; transition:transform .2s, border-color .2s, box-shadow .2s; }
+    .ls-stage:hover { transform:translateY(-2px); border-color:#06b6d4; box-shadow:0 12px 30px rgba(0,0,0,.08); }
+    .ls-icon { width:44px; height:44px; border-radius:16px; background:#ecfeff; border:1px solid #cffafe; display:flex; align-items:center; justify-content:center; font-size:22px; }
+    .ls-pill { font-size:10px; font-weight:800; padding:2px 8px; border-radius:9999px; white-space:nowrap; }
+    .ls-req { background:#ffe4e6; color:#be123c; border:1px solid #fecdd3; }
+    .ls-opt { background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; }
+    .ls-ok { background:#d1fae5; color:#065f46; border:1px solid #a7f3d0; }
+    .ls-pend { background:#fef3c7; color:#92400e; border:1px solid #fde68a; }
+    .ls-doc { display:flex; gap:12px; align-items:flex-start; justify-content:space-between; padding:14px 0; border-bottom:1px solid #f1f5f9; }
+    .ls-doc:last-child { border-bottom:none; }
+    .ls-btn { padding:9px 14px; font-size:12px; font-weight:700; border-radius:12px; border:none; cursor:pointer; background:#0891b2; color:#fff; white-space:nowrap; }
+    .ls-btn.alt { background:#f8fafc; color:#0f172a; border:1.5px solid #e2e8f0; }
+    .ls-btn.green { background:linear-gradient(135deg,#059669,#10b981); }
+    .ls-btn:disabled { opacity:.6; cursor:wait; }
+    .ls-folder { display:inline-flex; gap:6px; align-items:center; font-size:12px; font-weight:700; color:#0e7490; background:#ecfeff; border:1px solid #cffafe; border-radius:12px; padding:6px 12px; }
+    .ls-meta { font-size:11px; color:#475569; margin-top:6px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:6px 10px; word-break:break-all; }
+  </style>
+</head>
+<body>
+  <div id="toast-container"></div>
+
+  <header class="page2-header">
+    <a href="dashboard.html" style="text-decoration:none; display:flex; align-items:center; gap:8px;">
+      <span class="header-app-title">DOC<span class="brand-gradient">DON</span></span>
+    </a>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div style="text-align:right;">
+        <div id="user-name" style="font-size:13px; font-weight:800;">DOCDON User</div>
+        <div style="font-size:10px; font-weight:600; color:#059669;">● Verified</div>
+      </div>
+      <a href="dashboard.html" class="ls-btn alt" style="text-decoration:none;">Dashboard</a>
+    </div>
+  </header>
+
+  <main class="ls-wrap">
+
+    <!-- VIEW 1: ALL STAGES -->
+    <section id="view-stages" style="display:flex; flex-direction:column; gap:20px;">
+      <div>
+        <button class="ls-back" onclick="location.href='dashboard.html'">← Back to Dashboard</button>
+        <h2 style="font-size:24px; font-weight:900; margin-top:6px;">Life Stage <span class="brand-gradient">Documents</span></h2>
+        <p style="font-size:13px; color:#64748b; margin-top:2px;">Verify and store the documents you need at every stage of life. Each stage keeps its own secure folder.</p>
+      </div>
+      <div class="ls-card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <strong style="font-size:13px;">Overall required documents verified</strong>
+          <strong id="overall-text" style="font-size:13px; color:#059669;"></strong>
+        </div>
+        <div class="ls-bar"><div id="overall-bar" style="width:0%"></div></div>
+      </div>
+      <div id="stage-grid" class="ls-grid"></div>
+    </section>
+
+    <!-- VIEW 2: ONE STAGE FOLDER -->
+    <section id="view-stage" style="display:none; flex-direction:column; gap:16px;">
+      <button class="ls-back" onclick="showStages()">← All Life Stages</button>
+      <div class="ls-card" id="stage-head"></div>
+      <div class="ls-card" id="stage-docs"></div>
+    </section>
+
+  </main>
+
+  <input type="file" id="file-input" accept=".pdf,.jpg,.jpeg,.png" style="display:none">
+
+  <script src="config.js"></script>
+  <script src="docdon-backend.js"></script>
+  <script src="verification-service.js"></script>
+  <script src="life-stages-data.js"></script>
+  <script>
+    let activeStage = null, pendingDoc = null;
+    let currentUser = null;
+    try { currentUser = DocdonVerificationService.requireUser(); } catch (e) {}
+    if (!currentUser) throw new Error('Please sign in to use Life Stage Documents.');
+    const holder = currentUser.name || currentUser.email || currentUser.identifier || 'DOCDON User';
+    document.getElementById('user-name').textContent = holder;
+    document.querySelector('.page2-header div[style*="text-align:right"] div:last-child').textContent = '● Signed in';
+
+    function showToast(title, msg, type) {
+      const c = document.getElementById('toast-container'); if (!c) return;
+      const t = document.createElement('div'); t.className = 'toast-item';
+      t.style.borderLeft = '4px solid ' + (type === 'success' ? '#10b981' : type === 'error' ? '#e11d48' : '#06b6d4');
+      const heading = document.createElement('strong'); heading.textContent = title;
+      const body = document.createElement('div'); body.style.cssText = 'font-size:11px; color:#475569; margin-top:2px;'; body.textContent = msg;
+      t.append(heading, body);
+      c.appendChild(t); setTimeout(() => t.remove(), 3500);
+    }
+    const stageById = id => LIFE_STAGES.find(s => s.id === id);
+
+    function renderStages() {
+      const o = LifeStageEngine.overall();
+      document.getElementById('overall-text').textContent = o.done + ' / ' + o.total + ' (' + o.pct + '%)';
+      document.getElementById('overall-bar').style.width = o.pct + '%';
+      document.getElementById('stage-grid').innerHTML = LIFE_STAGES.map(s => {
+        const p = LifeStageEngine.stageProgress(s), pct = p.reqTotal ? Math.round(p.reqDone / p.reqTotal * 100) : 0;
+        return '<div class="ls-card ls-stage" onclick="openStage(\'' + s.id + '\')">' +
+          '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;"><div class="ls-icon">' + s.icon + '</div>' +
+          '<span class="ls-pill ' + (pct === 100 ? 'ls-ok' : 'ls-opt') + '">' + s.age + '</span></div>' +
+          '<div style="font-size:16px; font-weight:800;">' + s.title + '</div>' +
+          '<div style="font-size:12px; color:#64748b; margin:4px 0 10px; line-height:1.4;">' + s.desc + '</div>' +
+          '<div style="font-size:11px; font-weight:700; color:#334155;">' + p.reqDone + ' of ' + p.reqTotal + ' required verified · ' + p.total + ' documents</div>' +
+          '<div class="ls-bar"><div style="width:' + pct + '%"></div></div></div>';
+      }).join('');
+    }
+
+    function showStages() {
+      activeStage = null;
+      document.getElementById('view-stage').style.display = 'none';
+      document.getElementById('view-stages').style.display = 'flex';
+      renderStages(); window.scrollTo(0, 0);
+    }
+
+    function openStage(id) {
+      activeStage = stageById(id); if (!activeStage) return;
+      document.getElementById('view-stages').style.display = 'none';
+      document.getElementById('view-stage').style.display = 'flex';
+      renderStage(); window.scrollTo(0, 0);
+    }
+
+    function renderStage() {
+      const s = activeStage, p = LifeStageEngine.stageProgress(s), pct = p.reqTotal ? Math.round(p.reqDone / p.reqTotal * 100) : 0;
+      document.getElementById('stage-head').innerHTML =
+        '<div style="display:flex; gap:12px; align-items:center;"><div class="ls-icon">' + s.icon + '</div><div><div style="font-size:20px; font-weight:900;">' + s.title + '</div><div style="font-size:12px; color:#64748b;">' + s.age + '</div></div></div>' +
+        '<p style="font-size:13px; color:#475569; margin:12px 0; line-height:1.45;">' + s.desc + '</p>' +
+        '<div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;"><span class="ls-folder">📂 DOCDON / ' + escapeHtml(holder) + ' / ' + s.title + '</span>' +
+        '<button class="ls-btn green" onclick="document.getElementById(\'stage-docs\').scrollIntoView({behavior:\'smooth\'})">📄 Review Documents</button>' +
+        (s.link ? '<a href="' + s.link + '" class="ls-btn green" style="text-decoration:none;">🤖 ' + s.linkLabel + '</a>' : '') +
+        '<button class="ls-btn alt" onclick="exportFolder()">⬇ Export Folder Summary</button></div>' +
+        '<div style="display:flex; justify-content:space-between; margin-top:14px; font-size:12px; font-weight:700;"><span>Required documents</span><span style="color:#059669;">' + p.reqDone + ' / ' + p.reqTotal + '</span></div>' +
+        '<div class="ls-bar"><div style="width:' + pct + '%"></div></div>';
+
+      const data = LifeStageEngine.load();
+      document.getElementById('stage-docs').innerHTML = s.docs.map(d => {
+        const r = data[d.id];
+        return '<div class="ls-doc"><div style="flex:1; min-width:0;">' +
+          '<div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;"><strong style="font-size:14px;">' + d.name + '</strong>' +
+          '<span class="ls-pill ' + (d.required ? 'ls-req' : 'ls-opt') + '">' + (d.required ? 'Required' : 'Optional') + '</span>' +
+          '<span class="ls-pill ' + (LifeStageEngine.isVerified(r) ? 'ls-ok' : 'ls-pend') + '">' + (r ? (LifeStageEngine.isVerified(r) ? '✔ ' : '') + escapeHtml(r.status) : 'Pending') + '</span></div>' +
+          '<div style="font-size:12px; color:#64748b; margin-top:4px; line-height:1.4;">' + d.info + '</div>' +
+          (r ? '<div class="ls-meta">📎 ' + escapeHtml(r.fileName) + (r.size ? ' · ' + escapeHtml(r.size) : '') + (r.reason ? '<br>' + escapeHtml(r.reason) : '') + (r.vaultId ? '<br>Stored in your DOCDON Vault' : '') + '</div>' : '') +
+          '</div><div style="display:flex; flex-direction:column; gap:6px;">' +
+          '<button class="ls-btn" id="btn-' + d.id + '" onclick="pickFile(\'' + d.id + '\')">' + (r ? 'Replace' : 'Upload & Verify') + '</button>' +
+          (r ? '<button class="ls-btn alt" onclick="removeDoc(\'' + d.id + '\')">Remove</button>' : '') + '</div></div>';
+      }).join('');
+    }
+
+    function pickFile(docId) { pendingDoc = activeStage.docs.find(d => d.id === docId); const i = document.getElementById('file-input'); i.value = ''; i.click(); }
+
+    document.getElementById('file-input').addEventListener('change', async e => {
+      const file = e.target.files && e.target.files[0]; if (!file || !pendingDoc) return;
+      const doc = pendingDoc, btn = document.getElementById('btn-' + doc.id);
+      if (btn) { btn.disabled = true; btn.textContent = 'Scanning…'; }
+      const res = await LifeStageEngine.verifyDocument(activeStage, doc, file);
+      if (res.ok) showToast(res.record.status, doc.name + ' processed by DOCDON and stored in your Vault.', LifeStageEngine.isVerified(res.record) ? 'success' : 'info');
+      else showToast('Verification Failed', res.reason, 'error');
+      renderStage();
+    });
+
+    function removeDoc(id) { LifeStageEngine.remove(id); renderStage(); showToast('Removed', 'Document removed from folder.', 'info'); }
+
+    function escapeHtml(value) { return String(value).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c])); }
+
+    function exportFolder() {
+      const blob = new Blob([LifeStageEngine.folderSummary(activeStage, holder)], { type: 'text/plain' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = 'DOCDON-' + activeStage.id + '-folder-summary.txt'; a.click();
+    }
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      try { await LifeStageEngine.syncFromVault(); }
+      catch (error) { showToast('Could not sync your Vault', error.message, 'error'); }
+      const q = new URLSearchParams(location.search).get('stage');
+      if (q && stageById(q)) openStage(q); else renderStages();
+    });
+  </script>
+</body>
+</html>

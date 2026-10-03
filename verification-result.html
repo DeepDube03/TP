@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>DOCDON - Verification Summary & Human Review</title>
+
+  <!-- PWA & Mobile Web App Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#ffffff">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles.css">
+  <script src="config.js"></script>
+  <script src="docdon-backend.js"></script>
+
+  <style>
+    .summary-metric-card {
+      background: #ffffff;
+      border: 1.5px solid var(--border-light);
+      border-radius: var(--radius-lg);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.03);
+    }
+    .metric-title {
+      font-size: 11px;
+      font-weight: 800;
+      color: #64748b;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .metric-value {
+      font-size: 18px;
+      font-weight: 900;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tab-btn {
+      padding: 10px 18px;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      border: 1.5px solid var(--border-light);
+      background: #ffffff;
+      color: #475569;
+      transition: all 0.2s ease;
+    }
+    .tab-btn.active {
+      background: #0f172a;
+      color: #ffffff;
+      border-color: #0f172a;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container"></div>
+
+  <!-- Modal Container -->
+  <div id="modal-container"></div>
+
+  <!-- Settings Slide-Over Drawer -->
+  <div id="settings-drawer-backdrop" class="hidden drawer-backdrop" onclick="closeSettingsDrawer(event)">
+    <div class="settings-drawer" onclick="event.stopPropagation()">
+      <div>
+        <div class="drawer-header">
+          <span class="drawer-title">Settings & Profile</span>
+          <button onclick="toggleSettingsDrawer()" style="background:none; border:none; font-size:18px; color:#94a3b8; cursor:pointer;">✕</button>
+        </div>
+        <div class="drawer-profile-card">
+          <div class="profile-avatar-circle" id="drawer-user-avatar">D</div>
+          <div>
+            <div id="drawer-user-name" style="font-weight:800; font-size:14px; color:#0f172a;">DOCDON User</div>
+            <div id="drawer-user-id" style="font-size:11px; color:#64748b;">david.miller</div>
+            <div style="font-size:10px; color:#059669; font-weight:700; margin-top:2px;">Signed-in DOCDON account</div>
+          </div>
+        </div>
+        <div class="drawer-menu-list">
+          <div class="drawer-menu-item" onclick="window.location.href='dashboard.html'">
+            <span>📁</span> Return to Dashboard
+          </div>
+          <div class="drawer-menu-item" onclick="window.location.href='verification.html'">
+            <span>🤖</span> Verification Workspace
+          </div>
+          <div class="drawer-menu-item" onclick="resetNewVerification()">
+            <span>🔄</span> Start New Verification
+          </div>
+        </div>
+      </div>
+      <div>
+        <button onclick="handleLogout()" class="btn-logout-drawer">
+          <span>🚪</span> Logout from DOCDON
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page Layout -->
+  <div class="page2-container">
+
+    <!-- Top Header -->
+    <header class="page2-header">
+      <div class="header-brand-left">
+        <a href="dashboard.html" style="text-decoration:none; display:flex; align-items:center; gap:8px;">
+          <span class="header-app-title">DOC<span class="brand-gradient">DON</span></span>
+        </a>
+        <span style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:9999px; background:#f0fdf4; color:#059669; border:1px solid #bbf7d0; margin-left:6px;">
+          Verification Center
+        </span>
+      </div>
+
+      <div class="header-user-right">
+        <div class="header-user-tag">
+          <span class="header-username" id="header-user-display">DOCDON User</span>
+          <span class="header-user-status">● Signed-in account</span>
+        </div>
+
+        <div class="header-logo-mini">
+          <svg viewBox="0 0 160 160" fill="none" style="width:100%; height:100%;">
+            <rect x="24" y="32" width="60" height="96" rx="12" fill="#3b82f6" opacity="0.8" transform="rotate(-10 24 32)"/>
+            <rect x="42" y="24" width="62" height="102" rx="14" fill="#38bdf8" opacity="0.9" transform="rotate(-5 42 24)"/>
+            <rect x="62" y="18" width="66" height="112" rx="16" fill="#34d399"/>
+            <circle cx="95" cy="94" r="22" fill="#10b981"/>
+            <path d="M86 94.5 L92.5 101 L105 87" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+
+        <button onclick="toggleSettingsDrawer()" class="btn-hamburger" title="Settings & Profile">
+          <div class="hamburger-line"></div>
+          <div class="hamburger-line"></div>
+          <div class="hamburger-line"></div>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="page2-content" style="max-width: 1040px;">
+
+      <!-- Navigation & Action Bar -->
+      <div class="btn-print-hide" style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <a href="verification.html" style="font-size:12px; font-weight:700; color:#0891b2; text-decoration:none; display:inline-flex; align-items:center; gap:4px;">
+            ← Back to Verification Workspace
+          </a>
+          <span style="color:#cbd5e1;">|</span>
+          <a href="dashboard.html" style="font-size:12px; font-weight:700; color:#64748b; text-decoration:none;">
+            Dashboard
+          </a>
+        </div>
+
+        <!-- View Switcher Tabs -->
+        <div style="display:flex; gap:8px;">
+          <button id="tab-summary-btn" onclick="switchViewTab('summary')" class="tab-btn active">
+            📋 Summary & Review
+          </button>
+          <button id="tab-report-btn" onclick="switchViewTab('report')" class="tab-btn">
+            📄 Verification Report
+          </button>
+        </div>
+      </div>
+
+      <!-- ======================================================================
+           VIEW A: VERIFICATION SUMMARY & HUMAN REVIEW (Phases 8 & 9)
+           ====================================================================== -->
+      <div id="view-summary" class="view-fade-in" style="display:flex; flex-direction:column; gap:24px;">
+
+        <!-- Applicant & Verification Header Card -->
+        <div style="background:#ffffff; border:1.5px solid var(--border-light); border-radius:var(--radius-xl); padding:24px; box-shadow:0 4px 20px rgba(0,0,0,0.04);">
+          <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:16px;">
+            <div>
+              <span style="font-size:11px; font-weight:800; color:#0891b2; letter-spacing:1px; text-transform:uppercase;">
+                VERIFICATION SUMMARY
+              </span>
+              <h2 style="font-size:24px; font-weight:900; color:#0f172a; margin-top:2px;" id="summary-applicant-name">
+                
+              </h2>
+              <div style="font-size:13px; color:#64748b; margin-top:4px;" id="summary-application-title">
+                No active visa verification session
+              </div>
+            </div>
+
+            <div style="text-align:right;">
+              <div style="font-size:11px; color:#64748b; font-weight:600;">Verification ID</div>
+              <div style="font-size:15px; font-weight:900; color:#0f172a;" id="summary-verification-id">DOC-VER-2026-0001</div>
+              <div style="font-size:11px; color:#64748b; margin-top:2px;" id="summary-timestamp">Timestamp: Active Session</div>
+            </div>
+          </div>
+
+          <!-- Verification Progress Bar -->
+          <div style="margin-top:20px; padding-top:16px; border-top:1px solid #f1f5f9;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+              <span style="font-size:13px; font-weight:800; color:#0f172a;">Verification Progress</span>
+              <span id="summary-progress-label" style="font-size:13px; font-weight:800; color:#059669;">0 documents processed</span>
+            </div>
+            <div class="progress-bar-track">
+              <div class="progress-bar-fill" id="summary-progress-bar" style="width: 0%;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Metric Summary Cards Grid (Phase 8) -->
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:14px;">
+          
+          <div class="summary-metric-card">
+            <span class="metric-title">IDENTITY</span>
+            <div class="metric-value" style="color:#059669;" id="metric-identity">
+              <span>Not Assessed</span>
+            </div>
+            <span style="font-size:11px; color:#64748b;">Passport evidence not processed</span>
+          </div>
+
+          <div class="summary-metric-card">
+            <span class="metric-title">DOCUMENTS</span>
+            <div class="metric-value" style="color:#0891b2;" id="metric-documents">
+              <span id="metric-docs-count">✓ 0 Processed</span>
+            </div>
+            <span style="font-size:11px; color:#64748b;">Actual results returned by DOCDON</span>
+          </div>
+
+          <div class="summary-metric-card">
+            <span class="metric-title">MISSING EVIDENCE</span>
+            <div class="metric-value" style="color:#b45309;" id="metric-missing">
+              <span>Not Assessed</span>
+            </div>
+            <span style="font-size:11px; color:#64748b;">No visa evidence checklist is available in this summary</span>
+          </div>
+
+          <div class="summary-metric-card">
+            <span class="metric-title">INCONSISTENCIES</span>
+            <div class="metric-value" style="color:#b45309;" id="metric-inconsistencies">
+              <span id="metric-issue-count">Not assessed</span>
+            </div>
+            <span style="font-size:11px; color:#64748b;">Cross-document comparison is not provided by this workflow</span>
+          </div>
+
+          <div class="summary-metric-card">
+            <span class="metric-title">HUMAN REVIEW</span>
+            <div class="metric-value" style="color:#b45309;" id="metric-human-review">
+              <span id="metric-review-status">Not Assessed</span>
+            </div>
+            <span style="font-size:11px; color:#64748b;">Based on DOCDON processing results</span>
+          </div>
+
+        </div>
+
+        <!-- AI Findings Card -->
+        <div style="background:#ffffff; border:1.5px solid var(--border-light); border-radius:var(--radius-xl); padding:24px; box-shadow:0 4px 20px rgba(0,0,0,0.04);">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px;">
+            <span style="font-size:18px;">🤖</span>
+            <h3 style="font-size:15px; font-weight:800; color:#0f172a;">AI Findings</h3>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:8px;" id="ai-findings-list"></div>
+
+          <!-- Important Compliance Notice -->
+          <div style="margin-top:16px; padding:12px 14px; background:#f8fafc; border-left:4px solid #06b6d4; border-radius:4px; font-size:12px; color:#475569;">
+            <strong>Compliance Note:</strong> DOCDON AI is an evidence assistant for verification and human review. It does not approve or reject visas. Official decisions remain under the jurisdiction of embassy and compliance authorities.
+          </div>
+        </div>
+
+        <!-- ======================================================================
+             PHASE 9: HUMAN REVIEW SECTION
+             ====================================================================== -->
+        <div style="background:#ffffff; border:1.5px solid var(--border-light); border-radius:var(--radius-xl); padding:24px; box-shadow:0 4px 20px rgba(0,0,0,0.04);">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:20px;">🛡️</span>
+              <div>
+                <h3 style="font-size:16px; font-weight:900; color:#0f172a;">Human Review Queue</h3>
+                <div style="font-size:12px; color:#64748b;">DOCDON review flags are shown here; reviewer actions remain in the dashboard.</div>
+              </div>
+            </div>
+            <span id="human-review-count-badge" style="font-size:11px; font-weight:800; padding:3px 10px; border-radius:9999px; background:#fffbeb; color:#b45309; border:1px solid #fde68a;">
+              Not assessed
+            </span>
+          </div>
+
+          <!-- Dynamic List of Flagged Issues -->
+          <div id="human-review-cards-container" style="display:flex; flex-direction:column; gap:16px;">
+            <!-- Rendered dynamically -->
+          </div>
+
+        </div>
+
+        <!-- Bottom CTA Bar -->
+        <div class="btn-print-hide" style="display:flex; justify-content:space-between; align-items:center; padding:12px 0;">
+          <a href="verification.html" class="btn-secondary" style="margin:0; width:auto; padding:12px 20px;">
+            <span>← Back to AI Chat</span>
+          </a>
+          <button onclick="switchViewTab('report')" class="btn-primary" style="margin:0; width:auto; padding:12px 24px; background:linear-gradient(135deg, #0891b2 0%, #10b981 100%);">
+            <span>Open Verification Report ➔</span>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- ======================================================================
+           VIEW B: VERIFICATION REPORT (Phase 10)
+           ====================================================================== -->
+      <div id="view-report" class="hidden view-fade-in" style="display:flex; flex-direction:column; gap:20px;">
+        
+        <!-- Report Action Bar -->
+        <div class="btn-print-hide" style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1.5px solid var(--border-light); border-radius:var(--radius-lg); padding:14px 20px;">
+          <div>
+            <div style="font-weight:800; font-size:13px; color:#0f172a;">Verification Summary Ready</div>
+            <div style="font-size:11px; color:#64748b;">Based on your declarations and document results returned by DOCDON</div>
+          </div>
+          <div style="display:flex; gap:10px;">
+            <button onclick="window.print()" class="btn-primary" style="margin:0; width:auto; padding:10px 18px; background:#0f172a;">
+              <span>🖨️ Download / Print Report</span>
+            </button>
+            <button onclick="resetNewVerification()" class="btn-secondary" style="margin:0; width:auto; padding:10px 16px;">
+              <span>🔄 Start New Verification</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Printable Verification Summary -->
+        <div class="report-document" id="printable-report">
+          
+          <!-- Report Header -->
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #0f172a; padding-bottom:18px; margin-bottom:24px;">
+            <div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <div style="width:36px; height:36px;">
+                  <svg viewBox="0 0 160 160" fill="none" style="width:100%; height:100%;">
+                    <rect x="24" y="32" width="60" height="96" rx="12" fill="#3b82f6"/>
+                    <rect x="42" y="24" width="62" height="102" rx="14" fill="#38bdf8"/>
+                    <rect x="62" y="18" width="66" height="112" rx="16" fill="#10b981"/>
+                    <circle cx="95" cy="94" r="22" fill="#047857"/>
+                    <path d="M86 94.5 L92.5 101 L105 87" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </div>
+                <h1 style="font-size:24px; font-weight:900; letter-spacing:1px; color:#0f172a; line-height:1;">
+                  DOC<span style="color:#0891b2;">DON</span>
+                </h1>
+              </div>
+              <div style="font-size:12px; font-weight:700; color:#475569; margin-top:4px;">
+                Visa application • DOCDON document review
+              </div>
+            </div>
+
+            <div style="text-align:right;">
+              <div style="font-size:18px; font-weight:900; color:#0f172a;">VERIFICATION REPORT</div>
+              <div style="font-size:12px; font-weight:700; color:#0891b2; margin-top:2px;" id="rep-ver-id">
+                Verification ID: DOC-VER-2026-0001
+              </div>
+              <div style="font-size:11px; color:#64748b; margin-top:2px;" id="rep-timestamp">
+                Not generated
+              </div>
+            </div>
+          </div>
+
+          <!-- Overall Status Badge (No Approval/Rejection Claims!) -->
+          <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; border:1.5px solid var(--border-light); border-radius:12px; padding:14px 20px; margin-bottom:24px;">
+            <div>
+              <span style="font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase;">DOCDON DOCUMENT PROCESSING STATUS</span>
+              <div style="font-size:16px; font-weight:900; color:#b45309; margin-top:2px;" id="rep-final-status">
+                No documents processed
+              </div>
+            </div>
+            <div style="font-size:11px; font-weight:700; color:#475569; text-align:right;">
+              Visa decisions remain with the relevant authority<br>
+              <span style="color:#059669;">Verified Checks: <strong id="rep-checks-count">0 / 0 Processed</strong></span>
+            </div>
+          </div>
+
+          <!-- Section 1: Applicant & Application Details Grid -->
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-bottom:24px;">
+            
+            <!-- Applicant Details -->
+            <div style="border:1px solid #e2e8f0; border-radius:10px; padding:16px;">
+              <h3 style="font-size:12px; font-weight:800; color:#0f172a; text-transform:uppercase; margin-bottom:10px; border-bottom:1px solid #f1f5f9; padding-bottom:6px;">
+                Applicant Information
+              </h3>
+              <div style="display:flex; flex-direction:column; gap:6px; font-size:12px;">
+                <div><span style="color:#64748b;">Legal Name:</span> <strong id="rep-app-name"></strong></div>
+                <div><span style="color:#64748b;">Date of Birth:</span> <strong id="rep-app-dob"></strong></div>
+                <div><span style="color:#64748b;">Nationality:</span> <strong id="rep-app-nat">Not collected</strong></div>
+                <div><span style="color:#64748b;">Email:</span> <span id="rep-app-email"></span></div>
+                <div><span style="color:#64748b;">Address:</span> <span id="rep-app-address"></span></div>
+              </div>
+            </div>
+
+            <!-- Application Details -->
+            <div style="border:1px solid #e2e8f0; border-radius:10px; padding:16px;">
+              <h3 style="font-size:12px; font-weight:800; color:#0f172a; text-transform:uppercase; margin-bottom:10px; border-bottom:1px solid #f1f5f9; padding-bottom:6px;">
+                Application Information
+              </h3>
+              <div style="display:flex; flex-direction:column; gap:6px; font-size:12px;">
+                <div><span style="color:#64748b;">Destination:</span> <strong id="rep-dest-country"></strong></div>
+                <div><span style="color:#64748b;">Visa Category:</span> <strong id="rep-visa-type"></strong></div>
+                <div><span style="color:#64748b;">Travel Purpose:</span> <span id="rep-purpose"></span></div>
+                
+                
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Section 2: Documents Reviewed Table -->
+          <div style="margin-bottom:24px;">
+            <h3 style="font-size:13px; font-weight:800; color:#0f172a; text-transform:uppercase; margin-bottom:10px;">
+              Documents Reviewed & OCR Confidence
+            </h3>
+            <table style="width:100%; border-collapse:collapse; font-size:12px; border:1px solid #e2e8f0; border-radius:8px; overflow:hidden;">
+              <thead>
+                <tr style="background:#f8fafc; border-bottom:1px solid #e2e8f0; text-align:left;">
+                  <th style="padding:10px 12px; color:#475569;">Document</th>
+                  <th style="padding:10px 12px; color:#475569;">Category</th>
+                  <th style="padding:10px 12px; color:#475569;">Extracted Fields</th>
+                  <th style="padding:10px 12px; color:#475569;">OCR Confidence</th>
+                  <th style="padding:10px 12px; color:#475569;">Status</th>
+                </tr>
+              </thead>
+              <tbody id="rep-documents-table-body">
+                <!-- Rendered dynamically -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Section 3: Evidence Cross-Check Status Table -->
+          <div style="margin-bottom:24px;">
+            <h3 style="font-size:13px; font-weight:800; color:#0f172a; text-transform:uppercase; margin-bottom:10px;">
+              Evidence Verification Matrix
+            </h3>
+            <table style="width:100%; border-collapse:collapse; font-size:12px; border:1px solid #e2e8f0; border-radius:8px; overflow:hidden;">
+              <thead>
+                <tr style="background:#f8fafc; border-bottom:1px solid #e2e8f0; text-align:left;">
+                  <th style="padding:10px 12px; color:#475569;">Check Item</th>
+                  <th style="padding:10px 12px; color:#475569;">Category</th>
+                  <th style="padding:10px 12px; color:#475569;">Sources Compared</th>
+                  <th style="padding:10px 12px; color:#475569;">Finding Status</th>
+                </tr>
+              </thead>
+              <tbody id="rep-evidence-table-body">
+                <!-- Rendered dynamically -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Section 4: AI Findings & Inconsistencies -->
+          <div style="margin-bottom:24px; padding:16px; background:#f8fafc; border-radius:10px; border:1px solid #e2e8f0;">
+            <h3 style="font-size:12px; font-weight:800; color:#0f172a; text-transform:uppercase; margin-bottom:8px;">
+              Summary of AI Verification Findings
+            </h3>
+            <ul style="padding-left:18px; font-size:12px; color:#334155; line-height:1.6;" id="rep-findings-list"></ul>
+          </div>
+
+          <!-- Section 5: Human Review Sign-Off Block -->
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:24px; padding-top:18px; border-top:1px solid #cbd5e1; font-size:11px; color:#475569;">
+            <div>
+              <strong>Human review:</strong> See DOCDON Verification Progress in the dashboard.<br>
+              <strong>Audit Status:</strong> <span id="rep-reviewer-status-text">Not Assessed</span><br>
+              <strong>Session ID:</strong> <span id="rep-session-id">Not available</span>
+            </div>
+            <div style="text-align:right;">
+              <strong>Processing source:</strong> Existing DOCDON document service<br>
+              <strong>Report Generated:</strong> <span id="rep-gen-time">Just now</span><br>
+              <em>Non-approval advisory document.</em>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- DOCDON Verification Engine Service -->
+  <script src="verification-service.js"></script>
+  <script>
+    const safeText = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    function toggleSettingsDrawer() { document.getElementById('settings-drawer-backdrop')?.classList.toggle('hidden'); }
+    function closeSettingsDrawer(event) { if (!event || event.target.id === 'settings-drawer-backdrop') document.getElementById('settings-drawer-backdrop')?.classList.add('hidden'); }
+    function handleLogout() { localStorage.removeItem('docdon_current_user'); location.replace('index.html'); }
+    function switchViewTab(tab) {
+      const summary = tab === 'summary';
+      document.getElementById('view-summary').classList.toggle('hidden', !summary);
+      document.getElementById('view-report').classList.toggle('hidden', summary);
+      document.getElementById('tab-summary-btn').classList.toggle('active', summary);
+      document.getElementById('tab-report-btn').classList.toggle('active', !summary);
+    }
+    function resetNewVerification() {
+      if (confirm('Start a new verification session? Existing documents in your DOCDON vault will remain unchanged.')) {
+        DocdonVerificationService.clearSession(); location.href = 'verification.html';
+      }
+    }
+    function statusOf(item) { return String(item.analysis?.validation?.status || item.document.verification_label || item.document.current_status || 'Processed'); }
+    function isVerifiedStatus(status) { return /verified|ai check passed|ready to share/i.test(status) && !/needs|pending|review|mismatch|rejected/i.test(status); }
+    function setText(id, value) { const element = document.getElementById(id); if (element) element.textContent = value || 'Not provided'; }
+    function extractedSummary(item) {
+      const data = item.analysis?.ocr?.extractedFields || item.analysis?.academicVerification?.ocr?.extractedFields || {};
+      const entries = Object.entries(data).filter(([,v]) => v !== null && v !== undefined && String(v).trim()).slice(0, 5);
+      if (!entries.length) return 'No extracted fields reported';
+      return entries.map(([key,value]) => `${key.replace(/[_-]/g,' ')}: ${String(value).slice(0,100)}`).join(' • ');
+    }
+    function confidenceText(item) {
+      const value = item.analysis?.validation?.confidence ?? item.analysis?.ocr?.confidence ?? item.document.confidence_score;
+      if (typeof value !== 'number' || !Number.isFinite(value)) return 'Not reported';
+      return `${Math.round(value <= 1 ? value * 100 : value)}%`;
+    }
+    function renderReviewCards(items) {
+      const container = document.getElementById('human-review-cards-container'); if (!container) return;
+      const flagged = items.filter(item => /needs human review|pending review|needs review|mismatch/i.test(statusOf(item)));
+      const badge = document.getElementById('human-review-count-badge');
+      if (badge) { badge.textContent = flagged.length ? `${flagged.length} document(s) need review` : 'No review flag returned'; badge.style.background = flagged.length ? '#fffbeb' : '#f1f5f9'; badge.style.color = flagged.length ? '#b45309' : '#475569'; }
+      container.innerHTML = flagged.length ? flagged.map(item => `<div class="review-card"><strong>${safeText(item.document.title || item.document.file_name || 'Document')}</strong><div style="font-size:12px;color:#475569">${safeText(item.analysis?.validation?.reason || item.document.verification_reason || item.document.error_reason || 'DOCDON marked this document for review.')}</div><a href="dashboard.html" class="btn-secondary" style="text-decoration:none;width:max-content">Open DOCDON Verification Progress</a></div>`).join('') : '<p style="font-size:12px;color:#64748b">No human-review flag was returned for this session. DOCDON does not issue visa decisions.</p>';
+    }
+    function populateReport(data) {
+      const user = DocdonVerificationService.getUser();
+      const session = data?.session;
+      const items = data?.documents || [];
+      const userName = user.name || user.fullName || user.identifier || 'DOCDON User';
+      ['drawer-user-name','header-user-display'].forEach(id => setText(id, userName));
+      setText('header-user-status', '● Signed in');
+      if (!session) {
+        setText('summary-applicant-name', userName); setText('summary-application-title', 'No active visa verification session');
+        setText('summary-verification-id', 'No active session'); setText('summary-timestamp', 'Start a verification session to create a summary.');
+      } else {
+        setText('summary-applicant-name', session.applicant.fullName || userName);
+        const app = session.application || {};
+        setText('summary-application-title', `Application: ${[app.country, app.visaType, app.purpose].filter(Boolean).join(' • ')}`);
+        setText('summary-verification-id', `VR-${session.id.slice(0,8).toUpperCase()}`);
+        setText('summary-timestamp', `Started: ${new Date(session.createdAt).toLocaleString()}`);
+        setText('rep-app-name', session.applicant.fullName || userName); setText('rep-app-email', session.applicant.email || 'Not provided');
+        setText('rep-dest-country', app.country); setText('rep-visa-type', app.visaType); setText('rep-purpose', app.purpose);
+        setText('rep-ver-id', `Verification ID: VR-${session.id.slice(0,8).toUpperCase()}`);
+        setText('rep-timestamp', `Started: ${new Date(session.createdAt).toLocaleString()}`);
+        setText('rep-gen-time', new Date().toLocaleString());
+      }
+      const verified = items.filter(item => isVerifiedStatus(statusOf(item))).length;
+      const flagged = items.filter(item => /needs human review|pending review|needs review|mismatch/i.test(statusOf(item))).length;
+      setText('summary-progress-label', `${items.length} documents processed • ${verified} marked verified by DOCDON`);
+      document.getElementById('summary-progress-bar').style.width = items.length ? `${Math.round(verified / items.length * 100)}%` : '0%';
+      setText('metric-docs-count', `${items.length} Processed`);
+      const identityDocs = items.filter(item => /passport/i.test(String(item.document.document_type || item.document.title || item.document.file_name || '')));
+      setText('metric-identity', identityDocs.some(item => isVerifiedStatus(statusOf(item))) ? 'Passport document marked verified by DOCDON' : identityDocs.length ? 'Passport document processed; see status' : 'Not assessed');
+      setText('metric-missing', 'Not assessed');
+      setText('metric-issue-count', items.length ? `${flagged} Review flags` : 'Not assessed');
+      setText('metric-review-status', flagged ? 'Review required' : items.length ? 'No flag returned' : 'Not assessed');
+      setText('rep-final-status', flagged ? 'Human review flagged by DOCDON' : items.length ? 'Document processing results available' : 'No documents processed');
+      setText('rep-checks-count', `${verified} / ${items.length} marked verified`);
+      setText('rep-session-id', session ? session.id : 'No active session');
+      setText('rep-reviewer-status-text', flagged ? 'Review flag returned; see DOCDON dashboard.' : 'No reviewer decision is included in this report.');
+      setText('rep-app-dob', 'Not collected on this page'); setText('rep-app-nat', 'Not collected on this page'); setText('rep-app-address', 'Not collected on this page');
+      const docsBody = document.getElementById('rep-documents-table-body');
+      docsBody.innerHTML = items.length ? items.map(item => `<tr><td>${safeText(item.document.title || item.document.file_name || 'Document')}</td><td>${safeText(item.document.document_type || item.analysis?.classification?.type || 'Not reported')}</td><td>${safeText(extractedSummary(item))}</td><td>${safeText(confidenceText(item))}</td><td>${safeText(statusOf(item))}</td></tr>`).join('') : '<tr><td colspan="5">No documents from this verification session were returned by DOCDON.</td></tr>';
+      const evidenceBody = document.getElementById('rep-evidence-table-body');
+      const answers = session?.answers || [];
+      evidenceBody.innerHTML = answers.length ? answers.map(answer => `<tr><td>${safeText(answer.question)}</td><td>Applicant declaration</td><td>${safeText(answer.answer)}</td><td>Self-reported; not independently verified</td></tr>`).join('') : '<tr><td colspan="4">No applicant declarations recorded.</td></tr>';
+      const findings = document.getElementById('rep-findings-list');
+      findings.innerHTML = items.length ? items.map(item => `<li>${safeText(item.document.title || item.document.file_name || 'Document')}: ${safeText(statusOf(item))}${item.analysis?.validation?.reason ? ` — ${safeText(item.analysis.validation.reason)}` : ''}</li>`).join('') : '<li>No DOCDON document processing results are available for this session.</li>';
+      const aiFindings = document.getElementById('ai-findings-list');
+      if (aiFindings) aiFindings.innerHTML = items.length ? items.map(item => `<div style="font-size:13px;color:#334155">• ${safeText(item.document.title || item.document.file_name || 'Document')}: ${safeText(statusOf(item))}${item.analysis?.validation?.reason ? ` — ${safeText(item.analysis.validation.reason)}` : ''}</div>`).join('') : '<div style="font-size:13px;color:#64748b">No DOCDON document results have been returned for this verification session.</div>';
+      renderReviewCards(items);
+    }
+    window.addEventListener('DOMContentLoaded', async () => {
+      try {
+        DocdonVerificationService.requireUser();
+        const data = await DocdonVerificationService.getReportData();
+        populateReport(data);
+      } catch (error) {
+        const list = document.getElementById('rep-findings-list');
+        if (list) list.textContent = error.message || 'Could not load this account’s verification data.';
+      }
+    });
+  </script>
+</body>
+</html>
