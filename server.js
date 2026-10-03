@@ -38,12 +38,43 @@ function accountKeyForUser(user) {
   return Object.keys(DocdonBackend.database.data.users || {}).find(key => DocdonBackend.database.data.users[key] === user) || String(user?.email_or_phone || '').toLowerCase();
 }
 
+function findLoginUser(identifier) {
+  const value = String(identifier || '').trim();
+  if (!value) return null;
+  const directMatch = DocdonBackend.database.getUser(value);
+  if (directMatch) return directMatch;
+
+  // The login form accepts a name as well as the signup username/number.
+  // Resolve full names only when unique; repeated names must use the unique
+  // username/number to avoid authenticating the wrong account.
+  const normalizeName = name => String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const normalized = normalizeName(value);
+  const nameMatches = Object.values(DocdonBackend.database.data.users || {})
+    .filter(user => normalizeName(user.name) === normalized);
+  return nameMatches.length === 1 ? nameMatches[0] : null;
+}
+
 function issueSession(user) {
   const payload = Buffer.from(JSON.stringify({
     userId: accountKeyForUser(user), userRecordId: user.id, role: user.role || 'student', exp: Date.now() + 12 * 60 * 60 * 1000
   })).toString('base64url');
   const signature = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
   return `${payload}.${signature}`;
+}
+
+function profileKeyForSession(session) {
+  const profiles = DocdonBackend.database.data.profiles || {};
+  // Keep the shipped demo fixtures readable while all newly created profiles use the immutable account ID.
+  return profiles[session.userRecordId] ? session.userRecordId :
+    (profiles[session.userId] ? session.userId : session.userRecordId);
+}
+
+function profileCompletion(profile, user = null) {
+  if (user?.demoOnly) return { complete: true, missing: [] };
+  const required = ['fullName', 'dateOfBirth', 'educationStage', 'purpose', 'location'];
+  const missing = required.filter(field => !String(profile?.[field] || '').trim());
+  if (['career', 'education', 'college_admission'].includes(profile?.purpose) && !String(profile?.career || '').trim()) missing.push('career');
+  return { complete: missing.length === 0, missing };
 }
 
 function readSession(req) {
@@ -143,7 +174,7 @@ const server = http.createServer(async (req, res) => {
     pathname.startsWith('/document-checklist') || 
     pathname.startsWith('/document-progress') || 
     pathname.startsWith('/roadmap') || 
-    pathname.startsWith('/profile') || 
+    pathname === '/profile' || pathname.startsWith('/profile/') ||
     pathname.startsWith('/advisor/') || 
     (pathname.startsWith('/documents/') && (method === 'DELETE' || method === 'PATCH' || method === 'POST' || pathname.endsWith('/status') || pathname.endsWith('/check')));
 
@@ -155,13 +186,32 @@ const server = http.createServer(async (req, res) => {
     }
 
     // Authentication endpoints used by the existing login and signup screens.
-    if (apiPath === '/api/auth/session' && method === 'POST') {
-      const user = DocdonBackend.database.getUser(body.identifier || '');
+    // Validate credentials and return only the account details needed to prompt
+    // for the enrolled biometric. A session is issued only after that check.
+    if (apiPath === '/api/auth/lookup' && method === 'POST') {
+      const user = findLoginUser(body.identifier);
       const password = user?.auth_info?.passwordHash;
       if (!user || !password || String(password) !== String(body.password || '')) {
         return sendJson(res, 401, { success: false, error: 'Invalid account or password' });
       }
-      return sendJson(res, 200, { success: true, token: issueSession(user), user: { id: accountKeyForUser(user), name: user.name, role: user.role || 'student' } });
+      return sendJson(res, 200, {
+        success: true,
+        user: {
+          id: user.id,
+          name: user.name,
+          role: user.role || 'student',
+          biometricType: user.auth_info?.biometricType || 'face'
+        }
+      });
+    }
+
+    if (apiPath === '/api/auth/session' && method === 'POST') {
+      const user = findLoginUser(body.identifier);
+      const password = user?.auth_info?.passwordHash;
+      if (!user || !password || String(password) !== String(body.password || '')) {
+        return sendJson(res, 401, { success: false, error: 'Invalid account or password' });
+      }
+      return sendJson(res, 200, { success: true, token: issueSession(user), user: { id: user.id, name: user.name, role: user.role || 'student' } });
     }
 
     if (apiPath === '/api/auth/register' && method === 'POST') {
@@ -171,7 +221,20 @@ const server = http.createServer(async (req, res) => {
       if (!identifier || !fullName || password.length < 6) return sendJson(res, 400, { success: false, error: 'Name, identifier, and a password of at least six characters are required' });
       if (DocdonBackend.database.getUser(identifier)) return sendJson(res, 409, { success: false, error: 'Account already exists' });
       const user = DocdonBackend.database.saveUser({ identifier, fullName, password, role: 'student', biometricType: body.biometricType });
-      return sendJson(res, 201, { success: true, token: issueSession(user), user: { id: accountKeyForUser(user), name: user.name, role: user.role } });
+      if (!user) return sendJson(res, 500, { success: false, error: 'Could not save the account. Check that the backend can write to its database folder, then try again.' });
+      const profile = DocdonBackend.database.saveProfile(user.id, {
+        fullName: user.name, dateOfBirth: '', educationStage: '', schoolName: '', course: '',
+        branch: '', currentYear: '', purpose: '', career: '', location: '', currentDocuments: [],
+        documentOwnerId: accountKeyForUser(user), profileCompleted: false
+      });
+      if (!profile || !DocdonBackend.database.lastSaveSucceeded) {
+        const key = String(identifier).toLowerCase();
+        delete DocdonBackend.database.data.users[key];
+        delete DocdonBackend.database.data.profiles[String(user.id).toLowerCase()];
+        DocdonBackend.database.save();
+        return sendJson(res, 500, { success: false, error: 'Could not save the account profile. Check backend database permissions and try again.' });
+      }
+      return sendJson(res, 201, { success: true, token: issueSession(user), user: { id: user.id, name: user.name, role: user.role } });
     }
 
     const session = readSession(req);
@@ -182,49 +245,81 @@ const server = http.createServer(async (req, res) => {
     }
     const isReviewerSession = Boolean(session && REVIEWER_ROLES.has(String(session.user.role || '').toLowerCase()));
     const scopedUserId = session ? (isReviewerSession && parsedUrl.query.userId ? parsedUrl.query.userId : session.userId) : null;
+    const scopedProfileId = session ? (isReviewerSession && parsedUrl.query.userId ? parsedUrl.query.userId : profileKeyForSession(session)) : null;
 
     // 0. User Profile: GET /api/profile, PUT /api/profile, PATCH /api/profile
     if (apiPath === '/api/profile' && method === 'GET') {
-      const result = api.getUserProfile(scopedUserId);
-      return sendJson(res, 200, result);
+      const result = api.getUserProfile(scopedProfileId, session.userId);
+      if (result.profile) {
+        result.profile.fullName = result.profile.fullName || session.user.name;
+        const completion = profileCompletion(result.profile, session.user);
+        result.profile.profileCompleted = completion.complete;
+        result.profile.missingFields = completion.missing;
+      }
+      return sendJson(res, result.success ? 200 : 400, result);
     }
 
     if (apiPath === '/api/profile' && (method === 'PUT' || method === 'PATCH' || method === 'POST')) {
-      const result = api.updateUserProfile(scopedUserId, { ...body, userId: scopedUserId });
+      const existingProfile = api.getUserProfile(scopedProfileId, session.userId).profile || {};
+      const proposed = { ...existingProfile, ...body };
+      const fullName = String(proposed.fullName || '').trim();
+      const dateOfBirth = String(proposed.dateOfBirth || '').trim();
+      const educationStage = String(proposed.educationStage || '').trim();
+      const purpose = String(proposed.purpose || '').trim();
+      const location = String(proposed.location || '').trim();
+      if (!fullName || fullName.length > 120) return sendJson(res, 400, { success: false, error: 'Enter your full name (up to 120 characters).' });
+      const birthDate = /^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth) ? new Date(`${dateOfBirth}T00:00:00.000Z`) : null;
+      if (dateOfBirth && (!birthDate || Number.isNaN(birthDate.getTime()) || birthDate.toISOString().slice(0, 10) !== dateOfBirth || birthDate.getTime() > Date.now())) return sendJson(res, 400, { success: false, error: 'Enter a valid date of birth that is not in the future.' });
+      const allowedStages = new Set(['10th_completed', '12th_pending', '12th_completed', 'graduate']);
+      const allowedPurposes = new Set(['education', 'college_admission', 'career', 'job', 'employment_verification', 'passport', 'visa', 'renting', 'bank_loan', 'government_work', 'driving_licence']);
+      if (educationStage && !allowedStages.has(educationStage)) return sendJson(res, 400, { success: false, error: 'Choose a valid education level.' });
+      if (purpose && !allowedPurposes.has(purpose)) return sendJson(res, 400, { success: false, error: 'Choose a valid DOCDON goal.' });
+      if (proposed.career && !DocdonBackend.CAREER_METADATA[proposed.career]) return sendJson(res, 400, { success: false, error: 'Choose a career path supported by DOCDON.' });
+      for (const field of ['schoolName', 'course', 'branch', 'currentYear', 'location']) {
+        if (String(proposed[field] || '').length > 160) return sendJson(res, 400, { success: false, error: `${field} must be 160 characters or fewer.` });
+      }
+      if (proposed.currentDocuments !== undefined && (!Array.isArray(proposed.currentDocuments) || proposed.currentDocuments.length > 500 || proposed.currentDocuments.some(item => typeof item !== 'string'))) return sendJson(res, 400, { success: false, error: 'Current documents must be a list of document type names.' });
+      const result = api.updateUserProfile(scopedProfileId, { ...body, fullName, dateOfBirth, educationStage, purpose, location, documentOwnerId: session.userId, userId: scopedProfileId }, session.userId);
+      if (!result.success) return sendJson(res, 400, result);
+      const completion = profileCompletion(result.profile, session.user);
+      result.profile.profileCompleted = completion.complete;
+      result.profile.missingFields = completion.missing;
+      session.user.name = fullName;
+      DocdonBackend.database.save();
       return sendJson(res, 200, result);
     }
 
     // 0a. Requirements Status Breakdown: GET /api/requirements/status
     if (apiPath === '/api/requirements/status' && method === 'GET') {
-      const userId = scopedUserId;
+      const userId = scopedProfileId;
       const result = api.getRequirementsStatus(userId, parsedUrl.query);
       return sendJson(res, 200, result);
     }
 
     // 0b. Dynamic Requirements: GET /api/requirements
     if (apiPath === '/api/requirements' && method === 'GET') {
-      const userId = scopedUserId;
+      const userId = scopedProfileId;
       const result = api.getRequirements(userId, parsedUrl.query);
       return sendJson(res, 200, result);
     }
 
     // 0c. Document Checklist: GET /api/document-checklist
     if (apiPath === '/api/document-checklist' && method === 'GET') {
-      const userId = scopedUserId;
+      const userId = scopedProfileId;
       const result = api.getDocumentChecklist(userId, parsedUrl.query);
       return sendJson(res, 200, result);
     }
 
     // 0d. Document Progress: GET /api/document-progress
     if (apiPath === '/api/document-progress' && method === 'GET') {
-      const userId = scopedUserId;
+      const userId = scopedProfileId;
       const result = api.getDocumentProgress(userId, parsedUrl.query);
       return sendJson(res, 200, result);
     }
 
     // 0e. Dynamic Roadmap: GET /api/roadmap
     if (apiPath === '/api/roadmap' && method === 'GET') {
-      const userId = scopedUserId;
+      const userId = scopedProfileId;
       const result = api.getRoadmap(userId, parsedUrl.query);
       return sendJson(res, 200, result);
     }
@@ -237,7 +332,7 @@ const server = http.createServer(async (req, res) => {
 
     // 1b. Advisor Consultation: POST /api/advisor/consult or POST /api/advisor/chat
     if ((apiPath === '/api/advisor/consult' || apiPath === '/api/advisor/chat') && method === 'POST') {
-      const result = api.consultAdvisor(body);
+      const result = api.consultAdvisor({ ...body, userId: scopedProfileId, documentOwnerId: session.userId });
       return sendJson(res, 200, result);
     }
 

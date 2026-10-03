@@ -3825,24 +3825,27 @@
       try {
         if (typeof localStorage !== 'undefined') {
           localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.data));
+          this.lastSaveSucceeded = true;
+          return true;
         } else if (typeof require !== 'undefined') {
-          try {
-            const fs = require('fs');
-            const path = require('path');
-            const rootDbPath = path.join(__dirname, 'database.json');
-            fs.writeFileSync(rootDbPath, JSON.stringify(this.data, null, 2), 'utf8');
-            const dataDir = path.join(__dirname, 'data');
-            if (!fs.existsSync(dataDir)) {
-              fs.mkdirSync(dataDir, { recursive: true });
-            }
-            fs.writeFileSync(path.join(dataDir, 'database.json'), JSON.stringify(this.data, null, 2), 'utf8');
-          } catch (e) {
-            // Memory fallback
-          }
+          const fs = require('fs');
+          const path = require('path');
+          const serialized = JSON.stringify(this.data, null, 2);
+          const rootDbPath = path.join(__dirname, 'database.json');
+          const dataDir = path.join(__dirname, 'data');
+          fs.mkdirSync(dataDir, { recursive: true });
+          fs.writeFileSync(rootDbPath, serialized, 'utf8');
+          fs.writeFileSync(path.join(dataDir, 'database.json'), serialized, 'utf8');
+          this.lastSaveSucceeded = true;
+          return true;
         }
       } catch (err) {
+        this.lastSaveSucceeded = false;
+        this.lastSaveError = err;
         console.warn('DocdonDatabase: save failed', err);
       }
+      this.lastSaveSucceeded = false;
+      return false;
     }
 
     // SECTION 18: SEED TEST SCENARIOS (David Miller REQ-1001, Elena Rostova REQ-1002, Alex Chen REQ-1003)
@@ -3904,6 +3907,9 @@
           role: 'admin', created_at: '2024-01-10T09:00:00.000Z', demoOnly: true
         };
       }
+      ['david.miller', 'elena.rostova', 'alex.chen', 'admin'].forEach(key => {
+        if (this.data.users[key]) this.data.users[key].demoOnly = true;
+      });
 
       // 1b. Profiles Table (Structured Context Engine for Admissions, Careers & Requirements)
       this.data.profiles = this.data.profiles || {};
@@ -4282,7 +4288,7 @@
       const userGroups = {};
       for (const [id, doc] of Object.entries(this.data.documents)) {
         if (!doc) continue;
-        const ownerId = (doc.owner_id || 'david.miller').toLowerCase().trim();
+        const ownerId = (doc.owner_id || '').toLowerCase().trim();
         const norm = normalizeDocumentType(doc.document_type || doc.title);
         const canonicalId = (norm && norm.canonicalId !== 'unrecognized') ? norm.canonicalId : (doc.document_type || id);
 
@@ -4397,7 +4403,7 @@
       if (!user || !user.identifier) return false;
       const key = user.identifier.toLowerCase().trim();
       this.data.users[key] = {
-        id: user.id || 'usr-' + Date.now(),
+        id: user.id || `usr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`,
         name: user.fullName || user.name,
         email_or_phone: user.identifier,
         auth_info: {
@@ -4409,45 +4415,42 @@
         role: user.role || 'student',
         created_at: new Date().toISOString()
       };
-      this.save();
+      if (!this.save()) {
+        delete this.data.users[key];
+        return false;
+      }
       return this.data.users[key];
     }
 
-    getProfile(userId) {
-      if (!userId) userId = 'david.miller';
+    getProfile(userId, accountId = '') {
+      if (!userId) return null;
       this.data.profiles = this.data.profiles || {};
       const norm = userId.toLowerCase().trim();
       if (this.data.profiles[norm]) return this.data.profiles[norm];
-      const found = Object.values(this.data.profiles).find(p => p.userId && p.userId.toLowerCase() === norm);
+      const found = Object.values(this.data.profiles).find(p => typeof p.userId === 'string' && p.userId.toLowerCase() === norm);
       if (found) return found;
-      const defaultProf = {
+      const legacy = accountId && this.data.profiles[String(accountId).toLowerCase().trim()];
+      if (legacy) return { ...legacy, userId: norm, documentOwnerId: String(accountId).toLowerCase().trim() };
+      return {
         userId: norm,
-        purpose: 'career',
-        career: 'engineering',
-        educationStage: 'graduate',
-        currentDocuments: ['aadhaar_card', 'pan_card'],
-        location: 'Maharashtra',
-        applicationStage: 'job_application',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        fullName: '', dateOfBirth: '', educationStage: '', schoolName: '', course: '',
+        branch: '', currentYear: '', purpose: '', career: '', location: '',
+        currentDocuments: [], profileCompleted: false
       };
-      this.data.profiles[norm] = defaultProf;
-      this.save();
-      return defaultProf;
     }
 
-    saveProfile(userId, profileData = {}) {
-      if (!userId) userId = profileData.userId || 'david.miller';
+    saveProfile(userId, profileData = {}, accountId = '') {
+      if (!userId) return null;
       this.data.profiles = this.data.profiles || {};
       const norm = userId.toLowerCase().trim();
-      const existing = this.getProfile(norm);
+      const existing = this.getProfile(norm, accountId);
       const updated = {
         ...existing,
         ...profileData,
         userId: norm,
-        career: profileData.career || profileData.careerPreference || existing.career || 'engineering',
         updatedAt: new Date().toISOString()
       };
+      if (profileData.careerPreference && !profileData.career) updated.career = profileData.careerPreference;
       if (profileData.currentDocuments && Array.isArray(profileData.currentDocuments)) {
         updated.currentDocuments = profileData.currentDocuments;
       }
@@ -6668,8 +6671,9 @@
     }
 
     // GET /api/profile
-    getUserProfile(userId = 'david.miller') {
-      const prof = this.db.getProfile(userId);
+    getUserProfile(userId, accountId = '') {
+      const prof = this.db.getProfile(userId, accountId);
+      if (!prof) return { success: false, error: 'An authenticated user is required.' };
       return {
         success: true,
         profile: prof
@@ -6677,8 +6681,9 @@
     }
 
     // PUT / PATCH /api/profile
-    updateUserProfile(userId = 'david.miller', profileData = {}) {
-      const updated = this.db.saveProfile(userId, profileData);
+    updateUserProfile(userId, profileData = {}, accountId = '') {
+      const updated = this.db.saveProfile(userId, profileData, accountId);
+      if (!updated) return { success: false, error: 'An authenticated user is required.' };
       const requirements = this.calculateProfileRequirements(updated);
       return {
         success: true,
@@ -6691,15 +6696,15 @@
     // Dynamic Roadmap Engine for Profile
     getProfileRoadmap(profile) {
       if (!profile) profile = {};
-      const career = profile.career || profile.careerPreference || 'engineering';
-      const careerMeta = CAREER_METADATA[career] || CAREER_METADATA['engineering'];
+      const career = profile.career || profile.careerPreference || '';
+      const careerMeta = CAREER_METADATA[career] || { label: 'No career path selected', pathName: 'Complete your profile', roadmapSteps: [] };
       const steps = careerMeta.roadmapSteps || [];
       return {
         success: true,
         career: career,
-        careerLabel: careerMeta.label || career,
-        pathName: careerMeta.pathName || career,
-        badge: careerMeta.label || 'Active Path',
+        careerLabel: careerMeta.label || career || 'Profile setup required',
+        pathName: careerMeta.pathName || career || 'Complete your profile',
+        badge: careerMeta.label || 'Profile setup required',
         steps: steps.map((s, idx) => ({
           stepNumber: idx + 1,
           marker: s.marker || '🎯',
@@ -6713,21 +6718,21 @@
     // Dynamic Requirements Engine for Profile
     calculateProfileRequirements(profile, vaultDocs = null) {
       if (!profile) profile = {};
-      const userId = profile.userId || 'david.miller';
+      const userId = profile.documentOwnerId || profile.userId;
       if (!vaultDocs) {
-        vaultDocs = this.db.getDocuments(userId);
+        vaultDocs = userId ? this.db.getDocuments(userId) : [];
       }
 
-      const career = profile.career || profile.careerPreference || 'engineering';
-      const goalKey = profile.purpose || 'career';
+      const career = profile.career || profile.careerPreference || '';
+      const goalKey = profile.purpose || '';
       const context = {
         goal: goalKey,
         careerPreference: career,
         career: career,
-        educationStage: profile.educationStage || 'graduate',
-        location: profile.location || 'Maharashtra',
-        applicationStage: profile.applicationStage || 'job_application',
-        applicantType: profile.applicantType || (profile.educationStage === 'graduate' ? 'fresher' : 'fresher'),
+        educationStage: profile.educationStage || '',
+        location: profile.location || '',
+        applicationStage: profile.applicationStage || '',
+        applicantType: profile.applicantType || '',
         specialConditions: profile.location ? ['state_domicile'] : []
       };
 
@@ -6735,7 +6740,7 @@
       const effectiveVaultDocs = [...vaultDocs];
 
       const personalized = this.advisor.generatePersonalizedChecklist(goalKey, context, effectiveVaultDocs);
-      const careerMeta = CAREER_METADATA[career] || { label: career, pathName: career };
+      const careerMeta = CAREER_METADATA[career] || { label: career || 'Not selected', pathName: career || 'Profile setup required' };
       const roadmap = this.getProfileRoadmap(profile);
 
       const requiredDocs = personalized.documents.map(d => ({
@@ -6795,7 +6800,7 @@
     }
 
     // GET /api/requirements
-    getRequirements(userId = 'david.miller', query = {}) {
+    getRequirements(userId = '', query = {}) {
       let prof = this.db.getProfile(userId);
       if (query.career) {
         prof = { ...prof, career: query.career, careerPreference: query.career };
@@ -6810,7 +6815,7 @@
     }
 
     // GET /api/requirements/status
-    getRequirementsStatus(userId = 'david.miller', query = {}) {
+    getRequirementsStatus(userId = '', query = {}) {
       const requirements = this.getRequirements(userId, query);
       return {
         success: true,
@@ -6842,7 +6847,7 @@
     }
 
     // GET /api/document-checklist
-    getDocumentChecklist(userId = 'david.miller', query = {}) {
+    getDocumentChecklist(userId = '', query = {}) {
       const requirements = this.getRequirements(userId, query);
       return {
         success: true,
@@ -6880,7 +6885,7 @@
     }
 
     // GET /api/document-progress
-    getDocumentProgress(userId = 'david.miller', query = {}) {
+    getDocumentProgress(userId = '', query = {}) {
       const requirements = this.getRequirements(userId, query);
       const vaultDocs = this.db.getDocuments(userId);
       const totalVault = vaultDocs.length;
@@ -6901,7 +6906,7 @@
     }
 
     // GET /api/documents/:id/status
-    getDocumentStatus(documentId, userId = 'david.miller') {
+    getDocumentStatus(documentId, userId = '') {
       const doc = this.db.getDocumentById(documentId);
       if (!doc) return { success: false, error: 'Document not found in vault' };
       const requirements = this.getRequirements(userId || doc.owner_id);
@@ -6940,7 +6945,7 @@
     }
 
     // GET /api/roadmap
-    getRoadmap(userId = 'david.miller', query = {}) {
+    getRoadmap(userId = '', query = {}) {
       let prof = this.db.getProfile(userId);
       if (query.career) {
         prof = { ...prof, career: query.career, careerPreference: query.career };
@@ -6950,7 +6955,7 @@
 
     // POST /api/advisor/consult
     consultAdvisor(payload = {}) {
-      const userId = payload.userId || (payload.sessionContext && payload.sessionContext.userId) || 'david.miller';
+      const userId = payload.userId || (payload.sessionContext && payload.sessionContext.userId) || '';
       const vaultDocs = payload.vaultDocs || this.db.getDocuments(userId);
       const result = this.advisor.processUserTurn({
         userText: payload.userText || payload.text || payload.purpose || '',
@@ -7006,8 +7011,8 @@
 
       const request = this.db.insertRequest({
         requester_id: requesterId || 'Verification Authority',
-        submitter_id: submitterId || 'david.miller',
-        submitter_name: submitterName || 'David Miller',
+        submitter_id: submitterId || '',
+        submitter_name: submitterName || 'Account Holder',
         purpose: purpose || plan.goal,
         status: 'pending',
         required_documents: docsList
@@ -7046,7 +7051,7 @@
       const { file, title, documentType, customDocumentType, ownerId, sampleKind, isCameraCapture } = payload;
       const customTypeName = String(customDocumentType || '').trim().slice(0, 100);
       const uploadValidationStartedAt = Date.now();
-      const targetOwner = ownerId || 'david.miller';
+      const targetOwner = ownerId || '';
       const simulationAllowed = typeof window !== 'undefined'
         ? window.location.protocol === 'file:'
         : (typeof process !== 'undefined' && (process.env.NODE_ENV === 'test' || process.env.DOCDON_ENABLE_TEST_FIXTURES === 'true'));
@@ -8314,7 +8319,7 @@
         share_token: shareToken,
         document_id: doc.document_id,
         request_id: requestId || null,
-        owner_id: doc.owner_id || payload.ownerId || 'david.miller',
+        owner_id: doc.owner_id || payload.ownerId || '',
         recipient: payload.recipient || 'State University Admissions & TechCorp Verification',
         purpose: payload.purpose || 'Academic Eligibility Check & Identity Verification',
         format: (payload.format || 'PDF').toUpperCase(),
@@ -8336,7 +8341,7 @@
       this.db.logAuditEvent({
         request_id: requestId,
         document_id: doc.document_id,
-        actor: doc.owner_id || 'david.miller',
+        actor: doc.owner_id || 'Account Holder',
         action: 'share_created',
         result: 'success',
         metadata: {
@@ -8763,6 +8768,11 @@
         }
 
         let resData = { success: false, error: 'Endpoint not found' };
+        let currentProfileId = '';
+        try {
+          const currentUser = JSON.parse(localStorage.getItem('docdon_current_user') || 'null');
+          currentProfileId = currentUser?.id || currentUser?.identifier || '';
+        } catch (e) {}
 
         if (normUrl === '/api/requests' && method === 'GET') {
           resData = api.listRequests();
@@ -8801,7 +8811,7 @@
         } else if (normUrl.startsWith('/api/documents/') && normUrl.endsWith('/status') && method === 'GET') {
           const docId = normUrl.split('/')[3];
           const params = new URLSearchParams(normUrl.split('?')[1] || '');
-          const userId = params.get('userId') || 'david.miller';
+          const userId = params.get('userId') || currentProfileId;
           resData = api.getDocumentStatus(docId, userId);
         } else if (normUrl.startsWith('/api/documents/') && method === 'PATCH') {
           const docId = normUrl.split('/')[3];
@@ -8825,31 +8835,31 @@
           resData = api.consultAdvisor(body);
         } else if (normUrl.startsWith('/api/profile') && method === 'GET') {
           const params = new URLSearchParams(normUrl.split('?')[1] || '');
-          const userId = params.get('userId') || 'david.miller';
+          const userId = params.get('userId') || currentProfileId;
           resData = api.getUserProfile(userId);
         } else if (normUrl.startsWith('/api/profile') && (method === 'PUT' || method === 'PATCH' || method === 'POST')) {
           const params = new URLSearchParams(normUrl.split('?')[1] || '');
-          const userId = body.userId || params.get('userId') || 'david.miller';
+          const userId = params.get('userId') || currentProfileId || body.userId || '';
           resData = api.updateUserProfile(userId, body);
         } else if (normUrl.startsWith('/api/requirements/status') && method === 'GET') {
           const params = new URLSearchParams(normUrl.split('?')[1] || '');
-          const userId = params.get('userId') || 'david.miller';
+          const userId = params.get('userId') || currentProfileId;
           resData = api.getRequirementsStatus(userId, Object.fromEntries(params.entries()));
         } else if (normUrl.startsWith('/api/requirements') && method === 'GET') {
           const params = new URLSearchParams(normUrl.split('?')[1] || '');
-          const userId = params.get('userId') || 'david.miller';
+          const userId = params.get('userId') || currentProfileId;
           resData = api.getRequirements(userId, Object.fromEntries(params.entries()));
         } else if (normUrl.startsWith('/api/document-checklist') && method === 'GET') {
           const params = new URLSearchParams(normUrl.split('?')[1] || '');
-          const userId = params.get('userId') || 'david.miller';
+          const userId = params.get('userId') || currentProfileId;
           resData = api.getDocumentChecklist(userId, Object.fromEntries(params.entries()));
         } else if (normUrl.startsWith('/api/document-progress') && method === 'GET') {
           const params = new URLSearchParams(normUrl.split('?')[1] || '');
-          const userId = params.get('userId') || 'david.miller';
+          const userId = params.get('userId') || currentProfileId;
           resData = api.getDocumentProgress(userId, Object.fromEntries(params.entries()));
         } else if (normUrl.startsWith('/api/roadmap') && method === 'GET') {
           const params = new URLSearchParams(normUrl.split('?')[1] || '');
-          const userId = params.get('userId') || 'david.miller';
+          const userId = params.get('userId') || currentProfileId;
           resData = api.getRoadmap(userId, Object.fromEntries(params.entries()));
         }
 

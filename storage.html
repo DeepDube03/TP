@@ -1540,8 +1540,8 @@
         <div class="drawer-profile-card">
           <div class="profile-avatar-circle" id="drawer-user-avatar">D</div>
           <div>
-            <div id="drawer-user-name" style="font-weight:800; font-size:14px; color:#0f172a;">David Miller</div>
-            <div id="drawer-user-id" style="font-size:11px; color:#64748b;">david.miller</div>
+            <div id="drawer-user-name" style="font-weight:800; font-size:14px; color:#0f172a;">Account holder</div>
+            <div id="drawer-user-id" style="font-size:11px; color:#64748b;"></div>
             <div style="font-size:10px; color:#059669; font-weight:700; margin-top:2px;">✔ Biometrics Verified</div>
           </div>
         </div>
@@ -1550,7 +1550,7 @@
           <div class="drawer-menu-item" onclick="window.location.href='dashboard.html'">
             <span>🏠</span> Back to Dashboard Hub
           </div>
-          <div class="drawer-menu-item" onclick="showToast('Profile', 'Profile verified.', 'info')">
+          <div class="drawer-menu-item" onclick="window.location.href='profile.html'">
             <span>👤</span> Profile Information
           </div>
           <div class="drawer-menu-item" onclick="showToast('Notifications', 'Document expiry reminders active.', 'info')">
@@ -1587,7 +1587,7 @@
       
       <!-- User Login Name -->
       <div class="header-user-tag">
-        <span class="header-username" id="header-user-display">David Miller</span>
+        <span class="header-username" id="header-user-display">Account holder</span>
         <span class="header-user-status" id="header-user-status">● Student Vault</span>
       </div>
 
@@ -2802,10 +2802,10 @@
         const stored = localStorage.getItem('docdon_current_user');
         if (stored) user = JSON.parse(stored);
       } catch (e) {}
-      const userKey = user && user.identifier ? user.identifier.toLowerCase() : 'david.miller';
+      const userKey = user && user.identifier ? user.identifier.toLowerCase() : '';
       return {
         key: `docdon_vault_documents_${userKey}`,
-        defaults: initialDocuments
+        defaults: userKey === 'david.miller' ? initialDocuments : []
       };
     }
 
@@ -2817,10 +2817,10 @@
         const stored = localStorage.getItem('docdon_current_user');
         if (stored) user = JSON.parse(stored);
       } catch (e) {}
-      const userKey = user && user.identifier ? user.identifier.toLowerCase() : 'david.miller';
+      const userKey = user && user.identifier ? user.identifier.toLowerCase() : '';
 
       const savedUser = localStorage.getItem(cfg.key);
-      const savedGlobal = localStorage.getItem('docdon_vault_documents');
+      const savedGlobal = userKey === 'david.miller' ? localStorage.getItem('docdon_vault_documents') : null;
       const saved = (savedUser !== null && savedUser !== undefined) ? savedUser : savedGlobal;
       let docs = cfg.defaults;
       if (saved !== null && saved !== undefined) {
@@ -2957,20 +2957,20 @@
           const stored = localStorage.getItem('docdon_current_user');
           if (stored) user = JSON.parse(stored);
         } catch (e) {}
-        const userKey = user && user.identifier ? user.identifier.toLowerCase() : 'david.miller';
+        const userKey = user ? (user.id || user.identifier || '').toLowerCase() : '';
         const docTypes = Array.from(new Set(
           (docs || [])
             .filter(d => !d.isExpired && (d.documentType || d.document_type))
             .map(d => d.documentType || d.document_type)
         ));
 
-        if (window.DocdonAPI?.updateUserProfile) {
+        if (!/^https?:$/.test(window.location.protocol) && window.DocdonAPI?.updateUserProfile) {
           window.DocdonAPI.updateUserProfile(userKey, { currentDocuments: docTypes });
         } else {
           fetch('/api/profile', {
-            method: 'PUT',
+            method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: userKey, currentDocuments: docTypes })
+            body: JSON.stringify({ currentDocuments: docTypes })
           }).catch(() => {});
         }
       } catch (e) {}
@@ -3009,7 +3009,7 @@
         const stored = localStorage.getItem('docdon_current_user');
         if (stored) user = JSON.parse(stored);
       } catch (e) {}
-      const userKey = user && user.identifier ? user.identifier.toLowerCase() : 'david.miller';
+      const userKey = user ? (user.id || user.identifier || '').toLowerCase() : '';
       let activeRequirements = null;
       if (window.DocdonBackend && window.DocdonBackend.api) {
         try {
@@ -3559,7 +3559,7 @@
                 </div>
               ` : `
                 <div style="margin-top:10px; padding:8px; background:#d1fae5; border-radius:8px; font-size:12px; font-weight:800; color:#065f46; display:flex; align-items:center; justify-content:center; gap:6px;">
-                  <span>✔</span> Biometrics Confirmed: Identity Verified (David Miller)
+                  <span>✔</span> Biometrics Confirmed: Identity Verified
                 </div>
               `}
             </div>
@@ -3832,7 +3832,7 @@
           const stored = localStorage.getItem('docdon_current_user');
           if (stored) user = JSON.parse(stored);
         } catch (e) {}
-        const userKey = user && user.identifier ? user.identifier.toLowerCase() : 'david.miller';
+        const userKey = user ? (user.id || user.identifier || '').toLowerCase() : '';
         if (window.DocdonBackend?.api?.getRequirements) {
           const activeRequirements = window.DocdonBackend.api.getRequirements(userKey);
           if (activeRequirements && Array.isArray(activeRequirements.requiredDocuments)) {
@@ -4116,13 +4116,14 @@
 
       // If deleted doc was 10th marksheet or lc, update agent memory so agent alerts owner!
       try {
-        const memStr = localStorage.getItem('docdon_agent_memory');
+        const memoryKey = getStorageAgentMemoryKey();
+        const memStr = localStorage.getItem(memoryKey);
         if (memStr) {
           const mem = JSON.parse(memStr);
           if (deletedDoc && deletedDoc.title.toLowerCase().includes('10th')) {
             if (deletedDoc.title.toLowerCase().includes('mark')) mem.tenthDocsStored.marksheet = false;
             if (deletedDoc.title.toLowerCase().includes('lc') || deletedDoc.title.toLowerCase().includes('leaving')) mem.tenthDocsStored.lc = false;
-            localStorage.setItem('docdon_agent_memory', JSON.stringify(mem));
+            localStorage.setItem(memoryKey, JSON.stringify(mem));
           }
         }
       } catch (e) {}
@@ -5169,7 +5170,7 @@
 
       let u = null;
       try { u = JSON.parse(localStorage.getItem('docdon_current_user')); } catch (e) {}
-      const uKey = u && u.identifier ? u.identifier.toLowerCase() : 'david.miller';
+      const uKey = u && u.identifier ? u.identifier.toLowerCase() : '';
 
       // Execute End-to-End Upload & OCR Pipeline on Backend
       let uploadResult = null;
@@ -5305,12 +5306,13 @@
       }
 
       try {
-        const memStr = localStorage.getItem('docdon_agent_memory');
+        const memoryKey = getStorageAgentMemoryKey();
+        const memStr = localStorage.getItem(memoryKey);
         if (memStr) {
           const mem = JSON.parse(memStr);
           if (formattedDoc.verified && docName.toLowerCase().includes('10th') && docName.toLowerCase().includes('mark')) mem.tenthDocsStored.marksheet = true;
           if (formattedDoc.verified && docName.toLowerCase().includes('10th') && (docName.toLowerCase().includes('lc') || docName.toLowerCase().includes('leaving'))) mem.tenthDocsStored.lc = true;
-          localStorage.setItem('docdon_agent_memory', JSON.stringify(mem));
+          localStorage.setItem(memoryKey, JSON.stringify(mem));
         }
       } catch (e) {}
 
@@ -5672,7 +5674,7 @@
 
       let u = null;
       try { u = JSON.parse(localStorage.getItem('docdon_current_user')); } catch (e) {}
-      const uKey = u && u.identifier ? u.identifier.toLowerCase() : 'david.miller';
+      const uKey = u && u.identifier ? u.identifier.toLowerCase() : '';
 
       try {
         let result = null;
@@ -5895,7 +5897,7 @@
 
       let u = null;
       try { u = JSON.parse(localStorage.getItem('docdon_current_user')); } catch (e) {}
-      const uKey = u && u.identifier ? u.identifier.toLowerCase() : 'david.miller';
+      const uKey = u && u.identifier ? u.identifier.toLowerCase() : '';
 
       const resolvedKey = docTitle ? resolveDocTypeKey(docTitle) : 'auto';
 
@@ -6029,6 +6031,15 @@
     // ==========================================================================
     // USER PROFILE & SETTINGS DRAWER
     // ==========================================================================
+    function getStorageAgentMemoryKey() {
+      try {
+        const user = JSON.parse(localStorage.getItem('docdon_current_user') || 'null');
+        const identity = user?.id || user?.identifier;
+        if (identity) return `docdon_agent_memory_${String(identity).toLowerCase()}`;
+      } catch (e) {}
+      return 'docdon_agent_memory';
+    }
+
     function loadCurrentUser() {
       let user = null;
       try {
@@ -6036,9 +6047,7 @@
         if (stored) user = JSON.parse(stored);
       } catch (e) {}
 
-      if (!user) {
-        user = { name: 'David Miller', identifier: 'david.miller', role: 'student' };
-      }
+      if (!user) { window.location.replace('index.html'); return; }
 
       const headerName = document.getElementById('header-user-display');
       const headerStatus = document.getElementById('header-user-status');
@@ -6048,14 +6057,14 @@
       const storageTitle = document.querySelector('.storage-title');
       const storageSubtitle = document.querySelector('.storage-subtitle');
 
-      if (headerName) headerName.textContent = user.name || 'David Miller';
+      if (headerName) headerName.textContent = user.name || user.identifier || 'Account holder';
       if (headerStatus) {
         headerStatus.textContent = '● Student Vault';
         headerStatus.style.color = '#0891b2';
       }
-      if (drawerName) drawerName.textContent = user.name || 'David Miller';
-      if (drawerId) drawerId.textContent = user.identifier || 'david.miller';
-      if (drawerAvatar) drawerAvatar.textContent = (user.name || 'D').charAt(0).toUpperCase();
+      if (drawerName) drawerName.textContent = user.name || user.identifier || 'Account holder';
+      if (drawerId) drawerId.textContent = user.identifier || '';
+      if (drawerAvatar) drawerAvatar.textContent = (user.name || user.identifier || '?').charAt(0).toUpperCase();
 
       if (storageTitle) storageTitle.textContent = "Encrypted Storage Vault";
       if (storageSubtitle) storageSubtitle.textContent = "All your documents stored linearly in one place with instant cryptographic sharing.";
@@ -6106,7 +6115,7 @@
       if (!/^https?:$/.test(window.location.protocol)) return;
       let user = null;
       try { user = JSON.parse(localStorage.getItem('docdon_current_user')); } catch (e) {}
-      const userKey = user?.identifier ? user.identifier.toLowerCase() : 'david.miller';
+      const userKey = user?.identifier ? user.identifier.toLowerCase() : '';
       try {
         const response = await fetch(`/api/documents?ownerId=${encodeURIComponent(userKey)}`);
         if (!response.ok) return;
@@ -6149,6 +6158,25 @@
 
     // Initialize Page & Real-Time Sync Listeners
     window.addEventListener('DOMContentLoaded', async () => {
+      let authUser = null;
+      try { authUser = JSON.parse(localStorage.getItem('docdon_current_user') || 'null'); } catch (e) {}
+      if (!authUser || (!authUser.sessionToken && /^https?:$/.test(location.protocol))) { location.replace('index.html'); return; }
+      if (location.protocol === 'file:' && window.DocdonBackend?.database) {
+        const account = window.DocdonBackend.database.getUser(authUser.identifier || '');
+        const profile = account && window.DocdonBackend.database.getProfile(authUser.id || account.id, authUser.identifier);
+        if (!account || (!account.demoOnly && !profile?.profileCompleted)) { location.replace('profile.html'); return; }
+      }
+      if (authUser.sessionToken) {
+        try {
+          const response = await fetch('/api/profile');
+          const result = await response.json();
+          if (!response.ok || !result.success) throw new Error('Could not load your account profile.');
+          if (!result.profile?.profileCompleted) { location.replace('profile.html'); return; }
+        } catch (error) {
+          try { sessionStorage.setItem('docdon_auth_error', 'We could not verify your account profile. Please sign in again when the account service is available.'); } catch (e) {}
+          location.replace('index.html'); return;
+        }
+      }
       loadCurrentUser();
       await syncVaultDocumentsFromServer();
       renderDocumentsList();
@@ -6160,6 +6188,7 @@
     });
 
     window.addEventListener('storage', (e) => {
+      if (e.key === 'docdon_current_user') { location.reload(); return; }
       if (e.key && (e.key.includes('docdon_vault_documents') || e.key.includes('docdon_agent_memory'))) {
         renderDocumentsList();
       }

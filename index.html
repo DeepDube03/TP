@@ -393,10 +393,10 @@
           <form id="login-form" onsubmit="handleLoginSubmit(event)">
             
             <div class="form-group">
-              <label for="login-identifier" class="form-label">Login Name or Number</label>
+              <label for="login-identifier" class="form-label">Username, Full Name, or Number</label>
               <div class="input-wrapper">
                 <span class="input-icon">👤</span>
-                <input id="login-identifier" type="text" required placeholder="Username or mobile number" class="input-field" oninput="onIdentifierChanged()" />
+                <input id="login-identifier" type="text" required placeholder="Username, full name, or mobile number" class="input-field" oninput="onIdentifierChanged()" />
               </div>
             </div>
 
@@ -587,9 +587,18 @@
       try { 
         localStorage.setItem('docdon_registered_users', JSON.stringify(users)); 
         if (window.DocdonBackend && window.DocdonBackend.database) {
-          window.DocdonBackend.database.saveUser(user);
+          const record = window.DocdonBackend.database.saveUser(user);
+          if (record) {
+            user.id = record.id;
+            window.DocdonBackend.database.saveProfile(record.id, {
+              fullName: record.name, dateOfBirth: '', educationStage: '', schoolName: '', course: '',
+              branch: '', currentYear: '', purpose: '', career: '', location: '', currentDocuments: [],
+              documentOwnerId: user.identifier.toLowerCase(), profileCompleted: false
+            });
+          }
         }
       } catch(e){}
+      return user;
     }
 
     function onIdentifierChanged() {
@@ -725,16 +734,44 @@
     }
 
     // Navigate to Page 2 (dashboard.html)
-    function redirectToDashboard(user) {
+    async function redirectToDashboard(user) {
+      let destination = 'dashboard.html';
+      if (user.sessionToken) {
+        try {
+          const response = await fetch('/api/profile', { headers: { Authorization: `Bearer ${user.sessionToken}` } });
+          const result = await response.json();
+          if (!response.ok || !result.success || !result.profile) throw new Error(result.error || 'Could not load your profile.');
+          destination = result.profile.profileCompleted ? 'dashboard.html' : 'profile.html';
+          user.id = result.profile.userId;
+          user.name = result.profile.fullName || user.name;
+        } catch (error) {
+          showToast('Profile Unavailable', error.message || 'Could not load your account profile. Please retry.', 'error');
+          return;
+        }
+      } else if (window.location.protocol === 'file:' && window.DocdonBackend?.database) {
+        const account = window.DocdonBackend.database.getUser(user.identifier || '');
+        if (!account) { showToast('Account Error', 'The local demo account could not be loaded.', 'error'); return; }
+        const profile = window.DocdonBackend.database.getProfile(account.id, user.identifier);
+        const required = ['fullName', 'dateOfBirth', 'educationStage', 'purpose', 'location'];
+        const missing = required.filter(field => !String(profile?.[field] || '').trim());
+        if (['career','education','college_admission'].includes(profile?.purpose) && !String(profile?.career || '').trim()) missing.push('career');
+        destination = account.demoOnly || missing.length === 0 ? 'dashboard.html' : 'profile.html';
+        user.id = account.id;
+        user.name = profile?.fullName || account.name || user.name;
+      }
       try {
         localStorage.setItem('docdon_current_user', JSON.stringify(user));
       } catch (e) {}
 
       AudioFeedback.playSuccess();
-      showToast('Welcome to DOCDON', 'Authenticated! Opening Dashboard...', 'success');
+      showToast('Welcome to DOCDON', resultMessageForDestination(destination), 'success');
       setTimeout(() => {
-        window.location.href = 'dashboard.html';
+        window.location.href = destination;
       }, 400);
+    }
+
+    function resultMessageForDestination(destination) {
+      return destination === 'profile.html' ? 'Account secured. Complete your profile to continue.' : 'Authenticated! Opening Dashboard...';
     }
 
     async function createHostedSession(endpoint, credentials) {
@@ -778,25 +815,69 @@
         return;
       }
 
-      const users = getRegisteredUsers();
-      const matchedUser = users.find(u => u.identifier.toLowerCase() === identifier.toLowerCase());
+      const hostedMode = /^https?:$/.test(window.location.protocol);
+      let matchedUser;
+      let recoverLocalAccount = false;
 
-      // 1. Strict User Verification: Reject any arbitrary unregistered user
-      if (!matchedUser) {
-        AudioFeedback.playWarning();
-        showToast('Account Not Found', `No registered profile found for "${identifier}". Please create an account first.`, 'error');
-        return;
-      }
+      // In hosted mode the backend is authoritative. Browser storage is only a
+      // demo/offline fallback and may not exist on another device or browser.
+      if (hostedMode) {
+        try {
+          const response = await fetch('/api/auth/lookup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ identifier, password })
+          });
+          const result = await response.json();
+          if (!response.ok || !result.success || !result.user) {
+            // Older hosted signups may have been acknowledged before the server
+            // database write was durable. Recover only a matching signup record
+            // from this browser, then let the backend register and persist it.
+            const localAccount = response.status === 401
+              ? getRegisteredUsers().find(u => u.identifier?.trim().toLowerCase() === identifier.toLowerCase() && u.password === password)
+              : null;
+            if (localAccount) {
+              matchedUser = localAccount;
+              recoverLocalAccount = true;
+            } else {
+              AudioFeedback.playWarning();
+              showToast('Sign In Failed', result.error || 'Check the username or number and password you used when creating the account.', 'error');
+              return;
+            }
+          } else {
+            matchedUser = {
+              id: result.user.id,
+              fullName: result.user.name,
+              identifier,
+              role: result.user.role || 'student',
+              biometricType: result.user.biometricType || 'face'
+            };
+          }
+        } catch (error) {
+          showToast('Account Service Unavailable', 'Could not reach the DOCDON account service. Check your connection and try again.', 'error');
+          return;
+        }
+      } else {
+        const users = getRegisteredUsers();
+        matchedUser = users.find(u => u.identifier.toLowerCase() === identifier.toLowerCase());
 
-      // 2. Strict Password Verification
-      if (matchedUser.password !== password) {
-        AudioFeedback.playWarning();
-        showToast('Incorrect Password', `The password entered is incorrect for ${matchedUser.fullName}.`, 'error');
-        return;
+        if (!matchedUser) {
+          AudioFeedback.playWarning();
+          showToast('Account Not Found', `No registered profile found for "${identifier}". Please create an account first.`, 'error');
+          return;
+        }
+
+        if (matchedUser.password !== password) {
+          AudioFeedback.playWarning();
+          showToast('Incorrect Password', `The password entered is incorrect for ${matchedUser.fullName}.`, 'error');
+          return;
+        }
       }
 
       // 3. Strict Biometric Verification: Must be specifically verified for THIS matched user
-      if (!authState.loginBiometricVerified || authState.verifiedIdentifier !== matchedUser.identifier.toLowerCase()) {
+      if (!authState.loginBiometricVerified ||
+          authState.verifiedIdentifier !== matchedUser.identifier.toLowerCase() ||
+          authState.loginBiometricType !== matchedUser.biometricType) {
         AudioFeedback.playWarning();
         const bioLabel = matchedUser.biometricType === 'fingerprint' ? 'Touch ID' : 'Face ID';
         showToast('Biometric Required', `Please scan compulsory ${bioLabel} to authenticate ${matchedUser.fullName}.`, 'info');
@@ -807,13 +888,21 @@
       // 4. Authenticated: create session
       const user = {
         name: matchedUser.fullName,
+        id: matchedUser.id,
         identifier: matchedUser.identifier,
         role: matchedUser.role || 'student',
         biometricType: matchedUser.biometricType,
         authMethod: 'Password + Compulsory ' + (matchedUser.biometricType === 'fingerprint' ? 'Touch ID' : 'Face ID')
       };
 
-      const hostedSession = await createHostedSession('/api/auth/session', { identifier, password });
+      const hostedSession = recoverLocalAccount
+        ? await createHostedSession('/api/auth/register', {
+            fullName: matchedUser.fullName,
+            identifier: matchedUser.identifier,
+            password,
+            biometricType: matchedUser.biometricType || 'face'
+          })
+        : await createHostedSession('/api/auth/session', { identifier, password });
       if (!hostedSession) return;
       if (hostedSession.token) user.sessionToken = hostedSession.token;
       if (hostedSession.user) user.role = hostedSession.user.role;
@@ -877,6 +966,7 @@
 
       redirectToDashboard({
         name: fullName,
+        id: newUser.id,
         identifier: contact.toLowerCase(),
         role: role,
         biometricType: newUser.biometricType,
@@ -956,8 +1046,14 @@
           AudioFeedback.playWarning();
           return;
         }
-        const users = getRegisteredUsers();
-        targetUser = users.find(u => u.identifier.toLowerCase() === identifier.toLowerCase());
+        if (/^https?:$/.test(window.location.protocol)) {
+          // Hosted accounts may be on another device/browser, so local storage
+          // cannot be used to decide whether their biometric prompt can open.
+          targetUser = { identifier, fullName: identifier, biometricType: type };
+        } else {
+          const users = getRegisteredUsers();
+          targetUser = users.find(u => u.identifier.toLowerCase() === identifier.toLowerCase());
+        }
         if (!targetUser) {
           showToast('Account Not Found', `No registered profile found for "${identifier}".`, 'error');
           AudioFeedback.playWarning();
@@ -1066,8 +1162,12 @@
       } else {
         if (!targetUser) {
           const id = document.getElementById('login-identifier')?.value.trim();
-          const users = getRegisteredUsers();
-          targetUser = users.find(u => u.identifier.toLowerCase() === id.toLowerCase());
+          if (/^https?:$/.test(window.location.protocol)) {
+            targetUser = { identifier: id };
+          } else {
+            const users = getRegisteredUsers();
+            targetUser = users.find(u => u.identifier.toLowerCase() === id.toLowerCase());
+          }
         }
 
         if (targetUser) {
@@ -1092,6 +1192,10 @@
     // Initialize Event Listeners
     window.addEventListener('DOMContentLoaded', () => {
       getRegisteredUsers();
+      try {
+        const authError = sessionStorage.getItem('docdon_auth_error');
+        if (authError) { sessionStorage.removeItem('docdon_auth_error'); showToast('Account Service Unavailable', authError, 'error'); }
+      } catch (e) {}
 
       const btnGotoRegister = document.getElementById('btn-goto-register');
       if (btnGotoRegister) {

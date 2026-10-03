@@ -10,6 +10,12 @@ No `DATABASE_URL` is used; the backend persists its local database files. Set `D
 
 An empty `apiBaseUrl` uses same-origin API requests. If the account API cannot be reached or does not return a valid session token, login is stopped and no authenticated user is saved or redirected.
 
+## First-time profile setup
+
+After signup, and after any login to an account with an incomplete profile, DOCDON opens `profile.html`. The profile record is stored in the existing `profiles` collection in the backend's JSON database and is keyed by the authenticated user's stable account ID. It stores full name, date of birth, education level, active DOCDON goal, and region; school/college, course, branch, and year/semester are optional academic context for later document checks. A career path is required when the goal is education or career-related. Account email/phone remains the login identifier and is displayed read-only. Gender, photo, and street address are not currently used by the requirements or verification logic.
+
+`GET /api/profile` and `PUT /api/profile` require the session bearer token and always operate on that session's profile; a client-supplied user ID is ignored. The server computes `profileCompleted` and returns `missingFields`. New profiles do not receive shared default personal, education, or document data. Existing built-in demo fixtures remain scoped to their demo accounts. Profile edits are available from the Settings & Profile drawer. No new environment variables or database service are required.
+
 **VerifiQ** is a comprehensive, multi-role identity and document verification web application built directly from the wireframe sketch and product specifications. It supports end-to-end peer-to-peer verification (Person A to Person B), live camera scanning with real-time OCR extraction, biometric identity gates, explicit privacy consent, automated AI verification, manual human review escalation, and office compliance queue management.
 
 ---
@@ -65,6 +71,8 @@ The application implements the complete multi-stage decision pipeline:
    ```
 2. Or serve it using any local static server if desired.
 
+Opening the static demo directly with `file://` keeps account/profile data in the existing browser-local DOCDON database. Use `npm start` and `http://localhost:3000` for the server-backed account/profile system and shared persistent database; new server-backed profiles are stored by backend user ID.
+
 ### Testing Scenarios Pre-Loaded:
 - **Case 1: David Miller (`REQ-1001`) - Happy Path**:
   1. Switch to **Person B (Submitter)**.
@@ -98,26 +106,28 @@ The User Profile acts as the single source of truth across DOCDON's backend data
 ### User Profile Schema
 ```json
 {
-  "userId": "david.miller",
-  "purpose": "career",
-  "career": "engineering",
-  "educationStage": "graduate",
-  "currentDocuments": [
-    "aadhaar_card",
-    "pan_card"
-  ],
-  "location": "Maharashtra",
-  "applicationStage": "job_application",
-  "updatedAt": "2024-06-16T15:00:00.000Z"
+  "userId": "usr-<stable-account-id>",
+  "fullName": "<account holder's name>",
+  "dateOfBirth": "<YYYY-MM-DD>",
+  "purpose": "<selected DOCDON goal>",
+  "career": "<selected path when relevant>",
+  "educationStage": "<selected education level>",
+  "schoolName": "<optional>",
+  "course": "<optional>",
+  "branch": "<optional>",
+  "currentYear": "<optional>",
+  "currentDocuments": [],
+  "location": "<user-provided state or region>",
+  "profileCompleted": true
 }
 ```
 
 ### Core Data Fields
 | Field | Type | Description |
 |---|---|---|
-| `userId` | `string` | Unique user account identifier (e.g. `david.miller`) |
+| `userId` | `string` | Stable unique ID from the authenticated account record |
 | `purpose` | `string` | Active goal or domain (`career`, `education`, `passport`, `visa`, `renting`, `bank_loan`, `government_work`, `driving_licence`) |
-| `career` | `string` | Career specialization (`engineering`, `mbbs`, `bds`, `pharmacy`, `law`, `ca`, `architecture`, `cs_software`) |
+| `career` | `string` | Supported specialization (`engineering`, `mbbs`, `bds`, `pharmacy`, `law`, `ca`, `architecture`) |
 | `educationStage` | `string` | Academic completion milestone (`10th_completed`, `12th_pending`, `12th_completed`, `graduate`) |
 | `currentDocuments` | `string[]` | Array of canonical document type keys currently stored in the user's Vault |
 | `location` | `string` | State or geographic jurisdiction (e.g. `Maharashtra`) for regional reservation and domicile requirements |
@@ -129,13 +139,13 @@ The User Profile acts as the single source of truth across DOCDON's backend data
 ## 🔌 REST API Endpoints
 
 ### 1. User Profile Management
-- **`GET /api/profile?userId={id}`**: Retrieves the persistent profile for the specified user.
-- **`PUT /api/profile`** & **`PATCH /api/profile`**: Updates persistent profile fields in `database.json`, `data/database.json`, and client session cache.
-  - Request body: `{ "userId": "david.miller", "career": "mbbs", "purpose": "career" }`
-  - Response: `{ "success": true, "profile": { ... } }`
+- **`GET /api/profile`**: Retrieves the authenticated user's profile.
+- **`PUT /api/profile`** & **`PATCH /api/profile`**: Validates and updates the authenticated user's profile in the existing JSON database.
+  - Request body contains profile fields only; account identity is resolved from the session token.
+  - Response includes `profileCompleted` and `missingFields` for onboarding state.
 
 ### 2. Dynamic Document Requirements
-- **`GET /api/requirements?userId={id}`**: Runs the Requirements Engine against the user's active profile and Vault documents, returning:
+- **`GET /api/requirements`**: Runs the Requirements Engine against the authenticated user's profile and Vault documents, returning:
   - `totalRequired`: Total count of prescribed documents.
   - `availableCount`, `missingCount`, `verifiedCount`, `expiredCount`, `needsReviewCount`.
   - `completionPercentage`: Exact mathematical progress ratio.
@@ -143,7 +153,7 @@ The User Profile acts as the single source of truth across DOCDON's backend data
   - `nextRecommendedAction`: Prescriptive guidance on what document to upload or renew next.
 
 ### 3. Visual Document Roadmap
-- **`GET /api/roadmap?userId={id}`**: Generates the personalized chronological milestone sequence matching the user's career and education stage:
+- **`GET /api/roadmap`**: Generates the personalized chronological milestone sequence matching the authenticated user's career and education stage:
   - Step 1: 10th Standard Qualifying Milestone.
   - Step 2: 12th Standard Foundation (stream-specific, e.g. PCM for Engineering, PCB for MBBS).
   - Step 3: Entrance Scorecard & Merit Counseling.

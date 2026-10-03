@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My Profile - DOCDON</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="config.js"></script>
+  <script src="docdon-backend.js"></script>
+  <style>
+    body{margin:0;background:#f8fafc;color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;min-height:100vh}
+    .profile-shell{max-width:850px;margin:42px auto;padding:0 20px 48px}.profile-brand{font-size:24px;font-weight:900;letter-spacing:1px;margin-bottom:22px}.profile-brand span{color:#06b6d4}
+    .profile-card{background:white;border:1px solid #e2e8f0;border-radius:22px;padding:32px;box-shadow:0 16px 45px rgba(15,23,42,.07)}
+    h1{font-size:26px;margin:0 0 8px}.intro{color:#64748b;margin:0 0 25px;line-height:1.5}.section-title{font-size:15px;font-weight:800;margin:26px 0 14px;padding-bottom:9px;border-bottom:1px solid #e2e8f0}
+    .profile-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.field{display:flex;flex-direction:column;gap:7px}.field.full{grid-column:1/-1}.field label{font-size:13px;font-weight:700;color:#334155}.field input,.field select{width:100%;height:44px;border:1px solid #cbd5e1;border-radius:10px;padding:0 12px;font:inherit;background:white;color:#0f172a}.field input:focus,.field select:focus{outline:2px solid #67e8f9;border-color:#06b6d4}.field small{font-size:12px;color:#64748b}
+    .profile-actions{display:flex;gap:12px;margin-top:26px}.profile-actions button,.profile-actions a{border:0;border-radius:12px;padding:13px 20px;font-weight:800;font-size:14px;cursor:pointer;text-decoration:none;text-align:center}.primary{background:#0f172a;color:white;flex:1}.secondary{background:#f1f5f9;color:#0f172a}.message{display:none;border-radius:10px;padding:12px 14px;margin-top:18px;font-size:14px}.message.error{display:block;background:#fff1f2;color:#be123c;border:1px solid #fecdd3}.message.success{display:block;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0}
+    @media(max-width:640px){.profile-shell{margin:20px auto}.profile-card{padding:22px 18px}.profile-grid{grid-template-columns:1fr}.field.full{grid-column:auto}.profile-actions{flex-direction:column}}
+  </style>
+</head>
+<body>
+  <main class="profile-shell">
+    <div class="profile-brand">DOC<span>DON</span></div>
+    <section class="profile-card">
+      <h1 id="page-title">Complete your profile</h1>
+      <p class="intro">Add your details so DOCDON can personalize your document requirements and keep your identity and education details with your account for document checks. Your account contact is shown read-only.</p>
+      <form id="profile-form" novalidate>
+        <div class="section-title">Personal information</div>
+        <div class="profile-grid">
+          <div class="field"><label for="fullName">Full name *</label><input id="fullName" name="fullName" maxlength="120" autocomplete="name" required></div>
+          <div class="field"><label for="dateOfBirth">Date of birth *</label><input id="dateOfBirth" name="dateOfBirth" type="date" required></div>
+          <div class="field"><label for="accountContact">Account email or phone</label><input id="accountContact" readonly aria-readonly="true"></div>
+          <div class="field"><label for="location">State / region *</label><input id="location" name="location" maxlength="160" placeholder="Enter your state or region" required></div>
+        </div>
+        <div class="section-title">Education and DOCDON goal</div>
+        <div class="profile-grid">
+          <div class="field"><label for="educationStage">Highest/current education level *</label><select id="educationStage" name="educationStage" required><option value="">Select your education level</option><option value="10th_completed">Completed 10th</option><option value="12th_pending">Completed 10th, currently studying 11th/12th</option><option value="12th_completed">Completed 12th</option><option value="graduate">Diploma or graduate</option></select></div>
+          <div class="field"><label for="purpose">What are you working toward? *</label><select id="purpose" name="purpose" required><option value="">Select a goal</option><option value="education">Education & higher studies</option><option value="college_admission">College admission</option><option value="career">Career pathway</option><option value="job">Job / employment</option><option value="employment_verification">Employment verification</option><option value="passport">Passport</option><option value="visa">Visa</option><option value="renting">Renting / tenancy</option><option value="bank_loan">Bank / loan</option><option value="government_work">Government work</option><option value="driving_licence">Driving licence</option></select></div>
+          <div class="field" id="career-field"><label for="career">Course / career path *</label><select id="career" name="career"><option value="">Select a path</option><option value="engineering">Engineering</option><option value="mbbs">MBBS</option><option value="bds">BDS</option><option value="pharmacy">Pharmacy</option><option value="law">Law</option><option value="ca">Chartered Accountancy</option><option value="architecture">Architecture</option></select><small>Required for education and career goals.</small></div>
+          <div class="field"><label for="schoolName">School / college</label><input id="schoolName" name="schoolName" maxlength="160" autocomplete="organization"></div>
+          <div class="field"><label for="course">Course / degree</label><input id="course" name="course" maxlength="160" placeholder="For example, B.Tech"></div>
+          <div class="field"><label for="branch">Branch / department</label><input id="branch" name="branch" maxlength="160" placeholder="For example, Computer Engineering"></div>
+          <div class="field"><label for="currentYear">Current year / semester</label><input id="currentYear" name="currentYear" maxlength="160" placeholder="For example, 2nd year"></div>
+        </div>
+        <div id="form-message" class="message" role="alert" aria-live="polite"></div>
+        <div class="profile-actions"><button id="save-button" class="primary" type="submit">Save and continue</button><a id="cancel-link" class="secondary" href="index.html">Cancel</a></div>
+      </form>
+    </section>
+  </main>
+<script>
+(() => {
+  const userKey = 'docdon_current_user';
+  const localDemo = location.protocol === 'file:' && Boolean(window.DocdonBackend?.database);
+  let currentUser;
+  try { currentUser = JSON.parse(localStorage.getItem(userKey) || 'null'); } catch (_) {}
+  if (!currentUser || (!currentUser.sessionToken && !localDemo)) { location.replace('index.html'); return; }
+  const form = document.getElementById('profile-form');
+  const message = document.getElementById('form-message');
+  const saveButton = document.getElementById('save-button');
+  const purpose = document.getElementById('purpose');
+  const career = document.getElementById('career');
+  const careerField = document.getElementById('career-field');
+  const requiredCareer = new Set(['education','college_admission','career']);
+  document.getElementById('accountContact').value = currentUser.identifier || '';
+  document.getElementById('dateOfBirth').max = new Date().toISOString().slice(0,10);
+  const showMessage = (text, type='error') => { message.textContent = text; message.className = `message ${type}`; };
+  const updateCareerRequirement = () => { const needed = requiredCareer.has(purpose.value); career.required = needed; careerField.hidden = !needed; };
+  purpose.addEventListener('change', updateCareerRequirement);
+  async function request(path, options={}) {
+    if (localDemo) {
+      const db = window.DocdonBackend.database;
+      const account = db.getUser(currentUser.identifier || '');
+      if (!account || (currentUser.id && currentUser.id !== account.id)) throw new Error('The local demo account could not be verified. Sign in again.');
+      let profile = db.getProfile(account.id, currentUser.identifier);
+      if (options.method === 'PUT') {
+        const fields = JSON.parse(options.body || '{}');
+        const complete = Boolean(fields.fullName && fields.dateOfBirth && fields.educationStage && fields.purpose && fields.location && (!requiredCareer.has(fields.purpose) || fields.career));
+        profile = db.saveProfile(account.id, { ...fields, documentOwnerId: account.email_or_phone.toLowerCase(), profileCompleted: complete }, account.email_or_phone.toLowerCase());
+        account.name = fields.fullName;
+        db.save();
+      }
+      if (account.demoOnly) profile = { ...profile, fullName: profile.fullName || account.name, profileCompleted: true };
+      else profile = { ...profile, profileCompleted: Boolean(profile.fullName && profile.dateOfBirth && profile.educationStage && profile.purpose && profile.location && (!requiredCareer.has(profile.purpose) || profile.career)) };
+      const required = ['fullName','dateOfBirth','educationStage','purpose','location'];
+      profile.missingFields = required.filter(field => !String(profile[field] || '').trim());
+      if (requiredCareer.has(profile.purpose) && !profile.career) profile.missingFields.push('career');
+      return { success:true, profile };
+    }
+    const response = await fetch(path, { ...options, headers: { ...(options.headers||{}), Authorization: `Bearer ${currentUser.sessionToken}`, ...(options.body ? {'Content-Type':'application/json'} : {}) } });
+    let result; try { result = await response.json(); } catch (_) { throw new Error('The account service returned an invalid response. Please retry.'); }
+    if (!response.ok || !result.success) throw new Error(result.error || 'Could not save your profile. Please retry.');
+    return result;
+  }
+  async function load() {
+    try {
+      const result = await request('/api/profile');
+      const profile = result.profile || {};
+      for (const field of ['fullName','dateOfBirth','location','educationStage','purpose','career','schoolName','course','branch','currentYear']) {
+        const input = document.getElementById(field); if (input && profile[field]) input.value = profile[field];
+      }
+      document.getElementById('page-title').textContent = profile.profileCompleted ? 'My Profile' : 'Complete your profile';
+      saveButton.textContent = profile.profileCompleted ? 'Save profile' : 'Save and continue';
+      document.getElementById('cancel-link').href = profile.profileCompleted ? 'dashboard.html' : 'index.html';
+      updateCareerRequirement();
+    } catch (error) { showMessage(`${error.message} You can retry by saving your profile again.`); }
+  }
+  form.addEventListener('submit', async event => {
+    event.preventDefault(); message.className='message';
+    updateCareerRequirement();
+    if (!form.reportValidity()) return;
+    const date = document.getElementById('dateOfBirth').value;
+    if (date && date > new Date().toISOString().slice(0,10)) { showMessage('Date of birth cannot be in the future.'); return; }
+    const profile = Object.fromEntries(['fullName','dateOfBirth','location','educationStage','purpose','career','schoolName','course','branch','currentYear'].map(id => [id, document.getElementById(id).value.trim()]));
+    saveButton.disabled = true; saveButton.textContent='Saving…';
+    try {
+      const result = await request('/api/profile', { method:'PUT', body: JSON.stringify(profile) });
+      const saved = result.profile;
+      currentUser.name = saved.fullName; currentUser.id = saved.userId;
+      localStorage.setItem(userKey, JSON.stringify(currentUser));
+      try {
+        const registered = JSON.parse(localStorage.getItem('docdon_registered_users') || '[]');
+        const account = registered.find(item => String(item.identifier || '').toLowerCase() === String(currentUser.identifier || '').toLowerCase());
+        if (account) { account.fullName = saved.fullName; localStorage.setItem('docdon_registered_users', JSON.stringify(registered)); }
+      } catch (_) {}
+      if (!saved.profileCompleted) { showMessage(`Please complete the required fields: ${(saved.missingFields||[]).join(', ')}.`, 'error'); return; }
+      showMessage('Profile saved. Opening your personalized DOCDON dashboard…', 'success');
+      setTimeout(() => location.assign('dashboard.html'), 450);
+    } catch (error) { showMessage(error.message); }
+    finally { saveButton.disabled = false; saveButton.textContent='Save and continue'; }
+  });
+  load();
+})();
+</script>
+</body>
+</html>
