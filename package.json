@@ -13,7 +13,9 @@
     "pdf-parse": "^1.1.1",
     "pdfjs-dist": "^4.10.38",
     "sharp": "^0.35.5",
-    "tesseract.js": "^5.0.5"
+    "tesseract.js": "^5.0.5",
+    "@modelcontextprotocol/sdk": "1.24.3",
+    "zod": "3.25.76"
   },
   "keywords": [
     "docdon",
