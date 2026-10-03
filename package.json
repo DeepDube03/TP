@@ -1,6 +1,6 @@
 {
   "name": "docdon-verification-platform",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "DOCDON - Dynamic Document Verification & Secure Vault Platform",
   "main": "server.js",
   "scripts": {
