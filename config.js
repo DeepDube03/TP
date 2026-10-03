@@ -2,5 +2,5 @@
 // frontend is hosted separately (for example, on GitHub Pages).
 // Leave empty when the frontend and backend are served by `node server.js`.
 window.DOCDON_CONFIG = Object.freeze({
-  apiBaseUrl: ''
+  apiBaseUrl: 'https://docdon.onrender.com'
 });
