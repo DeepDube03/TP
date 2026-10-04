@@ -7,6 +7,7 @@
 const { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js');
 const { StreamableHTTPServerTransport } = require('@modelcontextprotocol/sdk/server/streamableHttp.js');
 const { z } = require('zod');
+const { randomUUID } = require('node:crypto');
 const DocdonBackend = require('./docdon-backend.js');
 
 const MAX_MCP_FILE_DATA_URL_CHARS = 34 * 1024 * 1024;
@@ -234,24 +235,93 @@ function registerTools(server) {
   );
 }
 
+// MCP sessions must persist between initialize -> tools/list -> tools/call.
+// AgenticOrg performs multiple HTTP requests and uses the MCP session ID returned
+// by the initialize response. The previous stateless implementation created a
+// brand-new server/transport for every request and immediately closed it, so
+// tool discovery could return an empty response or time out.
+const mcpSessions = new Map();
+
 async function handleMcpRequest(req, res, parsedBody) {
-  // Stateless transport: AgenticOrg can initialize and discover tools without
-  // requiring a long-lived in-memory session on Render.
-  const server = new McpServer({ name: 'DOCDON Document Verification', version: '1.0.0' });
-  registerTools(server);
-  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
+  const sessionIdHeader = req.headers['mcp-session-id'];
+  const sessionId = Array.isArray(sessionIdHeader) ? sessionIdHeader[0] : sessionIdHeader;
+
+  let session = sessionId ? mcpSessions.get(sessionId) : undefined;
+
   try {
-    await server.connect(transport);
-    await transport.handleRequest(req, res, parsedBody);
+    // Create a new MCP server/transport only for a new initialize request.
+    if (!session) {
+      const isInitialize =
+        req.method === 'POST' &&
+        parsedBody &&
+        parsedBody.jsonrpc === '2.0' &&
+        parsedBody.method === 'initialize';
+
+      if (!isInitialize) {
+        res.writeHead(400, {
+          'Content-Type': 'application/json; charset=UTF-8',
+          'Access-Control-Allow-Origin': '*'
+        });
+        res.end(JSON.stringify({
+          jsonrpc: '2.0',
+          error: {
+            code: -32000,
+            message: 'Bad Request: Missing or invalid MCP session ID'
+          },
+          id: parsedBody?.id ?? null
+        }));
+        return;
+      }
+
+      const server = new McpServer({
+        name: 'DOCDON Document Verification',
+        version: '1.0.0'
+      });
+      registerTools(server);
+
+      let transport;
+      transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => randomUUID(),
+        enableJsonResponse: true,
+        onsessioninitialized: (newSessionId) => {
+          mcpSessions.set(newSessionId, { server, transport });
+          console.log('[DOCDON MCP] Session initialized:', newSessionId);
+        }
+      });
+
+      transport.onclose = () => {
+        if (transport.sessionId) {
+          mcpSessions.delete(transport.sessionId);
+          console.log('[DOCDON MCP] Session closed:', transport.sessionId);
+        }
+      };
+
+      await server.connect(transport);
+      session = { server, transport };
+
+      await transport.handleRequest(req, res, parsedBody);
+      return;
+    }
+
+    // Existing session: keep the same transport/server for tools/list,
+    // tools/call, notifications/initialized, GET, and DELETE.
+    await session.transport.handleRequest(req, res, parsedBody);
   } catch (error) {
     console.error('[DOCDON MCP]', error?.stack || error);
     if (!res.headersSent) {
-      res.writeHead(500, { 'Content-Type': 'application/json; charset=UTF-8', 'Access-Control-Allow-Origin': '*' });
-      res.end(JSON.stringify({ jsonrpc: '2.0', error: { code: -32603, message: error?.message || 'MCP server error' }, id: null }));
+      res.writeHead(500, {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Access-Control-Allow-Origin': '*'
+      });
+      res.end(JSON.stringify({
+        jsonrpc: '2.0',
+        error: {
+          code: -32603,
+          message: error?.message || 'MCP server error'
+        },
+        id: parsedBody?.id ?? null
+      }));
     }
-  } finally {
-    try { await transport.close(); } catch (_) {}
-    try { await server.close(); } catch (_) {}
   }
 }
 
